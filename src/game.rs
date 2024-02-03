@@ -4,7 +4,7 @@ use crate::ui::{ReloadUiEvent, SlotPressEvent, UiPlugin};
 use crate::GameState;
 use bevy::prelude::*;
 
-const SLOT_START_AMOUNT: u32 = 6;
+const SLOT_START_AMOUNT: u32 = 1;
 
 #[derive(Default, Debug)]
 pub enum Player {
@@ -44,8 +44,14 @@ impl ToString for Player {
 #[derive(Event)]
 pub struct MoveEvent(pub u32, pub u32, pub VecDeque<Entity>);
 
+#[derive(Event, Default)]
+pub struct MoveEndEvent;
+
 #[derive(Event)]
 pub struct SlotActionEvent(pub Entity);
+
+#[derive(Event)]
+pub struct GameOverEvent(pub Option<Player>);
 
 #[derive(Resource, Debug)]
 pub struct CurrentPlayer(pub Player);
@@ -119,8 +125,14 @@ impl Plugin for GamePlugin {
             .init_resource::<CurrentPlayer>()
             .init_resource::<Board>()
             .add_event::<MoveEvent>()
+            .add_event::<MoveEndEvent>()
+            .add_event::<GameOverEvent>()
             .add_systems(OnEnter(GameState::Game), setup_slots)
-            .add_systems(Update, handle_move.run_if(in_state(GameState::Game)));
+            .add_systems(
+                Update,
+                (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
+                    .run_if(in_state(GameState::Game)),
+            );
     }
 }
 
@@ -152,6 +164,10 @@ fn setup_slots(
             slot.count = 0;
             commands.spawn((slot, Store)).id()
         } else {
+            if index != 5 {
+                slot.count = 0;
+            }
+
             commands.spawn(slot).id()
         };
 
@@ -167,6 +183,7 @@ fn handle_move(
     mut slot_query: Query<&mut Slot>,
     mut slot_press_events: EventReader<SlotPressEvent>,
     mut move_events: EventWriter<MoveEvent>,
+    mut move_end_events: EventWriter<MoveEndEvent>,
 ) {
     for event in slot_press_events.read() {
         let slot = slot_query.get(event.0).unwrap();
@@ -224,5 +241,49 @@ fn handle_move(
         for mut slot in &mut slot_query {
             slot.count = counts[slot.index];
         }
+
+        move_end_events.send_default();
     }
+}
+
+fn check_game_over(
+    mut game_over_events: EventWriter<GameOverEvent>,
+    slot_query: Query<&Slot>,
+    board: Res<Board>,
+) {
+    let mut player_1_score = 0;
+    let mut player_2_score = 0;
+
+    let mut player_1_empty = true;
+    let mut player_2_empty = true;
+
+    for slot in &board.slots {
+        if let Ok(slot) = slot_query.get(*slot) {
+            if Board::is_store(slot.index) {
+                match Board::owner(slot.index) {
+                    Player::Player1 => player_1_score += slot.count,
+                    Player::Player2 => player_2_score += slot.count,
+                }
+            } else if slot.count > 0 {
+                match Board::owner(slot.index) {
+                    Player::Player1 => player_1_empty = false,
+                    Player::Player2 => player_2_empty = false,
+                }
+            }
+        }
+    }
+
+    if !player_1_empty && !player_2_empty {
+        return;
+    }
+
+    let winner: Option<Player> = if player_1_score > player_2_score {
+        Some(Player::Player1)
+    } else if player_2_score > player_1_score {
+        Some(Player::Player2)
+    } else {
+        None
+    };
+
+    game_over_events.send(GameOverEvent(winner));
 }

@@ -8,6 +8,7 @@ mod animations;
 mod assets;
 pub mod board;
 mod constants;
+mod game_over;
 mod helpers;
 mod marbles;
 mod player;
@@ -38,6 +39,7 @@ impl Plugin for UiPlugin {
                     board::handle_action,
                     board::handle_hover,
                     animations::handle_move,
+                    game_over::draw_game_over_screen,
                 ),
             )
             .add_systems(SpawnScene, (slots::draw_labels).chain())
