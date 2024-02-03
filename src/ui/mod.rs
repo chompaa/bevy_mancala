@@ -2,12 +2,16 @@ use std::collections::{BTreeMap, VecDeque};
 
 use bevy::{prelude::*, sprite::Material2dPlugin};
 
+use crate::game::Player;
+
 mod animations;
 mod assets;
 pub mod board;
+mod constants;
 mod helpers;
-mod labels;
 mod marbles;
+mod player;
+mod slots;
 
 pub struct UiPlugin;
 
@@ -16,6 +20,7 @@ impl Plugin for UiPlugin {
         app.add_plugins(Material2dPlugin::<marbles::OutlineMaterial>::default())
             .add_event::<ReloadUiEvent>()
             .add_event::<AnimationWaitEvent>()
+            .add_event::<AnimationEndEvent>()
             .add_event::<MarbleEvent>()
             .add_event::<MarbleOutlineEvent>()
             .add_event::<SlotPressEvent>()
@@ -25,7 +30,9 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 (
-                    (board::clear_ui, board::draw_board).run_if(on_event::<ReloadUiEvent>()),
+                    (board::clear_ui, board::draw_board, player::draw_labels)
+                        .run_if(on_event::<ReloadUiEvent>()),
+                    player::update_labels,
                     marbles::draw_containers,
                     marbles::handle_marble_outline,
                     board::handle_action,
@@ -33,12 +40,12 @@ impl Plugin for UiPlugin {
                     animations::handle_move,
                 ),
             )
-            .add_systems(SpawnScene, (labels::draw_labels).chain())
+            .add_systems(SpawnScene, (slots::draw_labels).chain())
             .add_systems(
                 PostUpdate,
-                (marbles::handle_marble_events, animations::animate_move).chain(),
+                (marbles::handle_marble_events, animations::animate_move),
             )
-            .add_systems(Last, labels::update_labels);
+            .add_systems(Last, (slots::update_labels).chain());
     }
 }
 
@@ -68,6 +75,9 @@ pub struct MarbleEvent(pub MarbleEventKind);
 #[derive(Event, Default)]
 pub struct AnimationWaitEvent;
 
+#[derive(Event, Default)]
+pub struct AnimationEndEvent;
+
 #[derive(Event)]
 pub struct MarbleOutlineEvent(pub Entity, pub Visibility);
 
@@ -94,6 +104,9 @@ pub struct Stack;
 
 #[derive(Component)]
 pub struct Animating(pub u32);
+
+#[derive(Component)]
+pub struct PlayerLabel(pub Player);
 
 #[derive(Clone)]
 pub struct MoveAnimation {

@@ -1,8 +1,8 @@
 use crate::game::Slot;
 
 use super::{
-    helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles, SlotUi,
-    UiAssets,
+    constants, helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles,
+    SlotUi, UiAssets,
 };
 
 use bevy::{
@@ -27,8 +27,6 @@ impl Material2d for OutlineMaterial {
         "shaders/outline.wgsl".into()
     }
 }
-
-const MARBLE_SIZE: f32 = 48.0;
 
 pub fn handle_marble_events(
     mut commands: Commands,
@@ -59,7 +57,9 @@ pub fn handle_marble_events(
                     let sprite = commands
                         .spawn(SpriteBundle {
                             sprite: Sprite {
-                                custom_size: Some((MARBLE_SIZE, MARBLE_SIZE).into()),
+                                custom_size: Some(
+                                    (constants::MARBLE_SIZE, constants::MARBLE_SIZE).into(),
+                                ),
                                 ..default()
                             },
                             texture: ui_assets.marble.clone(),
@@ -69,7 +69,7 @@ pub fn handle_marble_events(
                         .id();
 
                     let mesh = Mesh2dHandle(meshes.add(Mesh::from(shape::Quad {
-                        size: Vec2::new(MARBLE_SIZE, MARBLE_SIZE),
+                        size: Vec2::new(constants::MARBLE_SIZE, constants::MARBLE_SIZE),
                         flip: false,
                     })));
 
@@ -146,8 +146,8 @@ pub fn draw_containers(
             let height = style.height.resolve(0., Vec2::ZERO).unwrap();
 
             Vec2::new(
-                width / 2. - MARBLE_SIZE / 3.,
-                height / 2. - MARBLE_SIZE / 3.,
+                width / 2. - constants::MARBLE_SIZE / 3.,
+                height / 2. - constants::MARBLE_SIZE / 3.,
             )
         };
 

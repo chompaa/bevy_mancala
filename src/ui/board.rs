@@ -1,31 +1,13 @@
 use bevy::prelude::*;
 
 use super::{
-    helpers, AnimationWaitEvent, MarbleOutlineEvent, Marbles, ReloadUiEvent, SlotButton,
+    constants, helpers, AnimationWaitEvent, MarbleOutlineEvent, Marbles, ReloadUiEvent, SlotButton,
     SlotHoverEvent, SlotPressEvent, SlotUi,
 };
 use crate::game::{Board, CurrentPlayer, Slot};
 
-const SLOT_SIZE: f32 = 64.0;
-const SLOT_GAP: f32 = 12.0;
-
-const STORE_WIDTH: f32 = 64.0 + 8.0;
-const STORE_HEIGHT: f32 = 128.0 + 28.0;
-const STORE_GAP: f32 = 0.0;
-
 pub fn draw_board(mut commands: Commands, board: Res<Board>) {
-    let screen = commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            ..default()
-        })
-        .id();
+    let screen = helpers::get_screen(&mut commands);
 
     let slot_container = commands
         .spawn(NodeBundle {
@@ -35,8 +17,8 @@ pub fn draw_board(mut commands: Commands, board: Res<Board>) {
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(SLOT_GAP),
-                row_gap: Val::Px(SLOT_GAP),
+                column_gap: Val::Px(constants::SLOT_GAP),
+                row_gap: Val::Px(constants::SLOT_GAP),
                 ..default()
             },
             ..default()
@@ -51,14 +33,18 @@ pub fn draw_board(mut commands: Commands, board: Res<Board>) {
         if Board::is_store(slot) {
             // slot is a store, so we need to create a store node
 
-            let node = helpers::get_node(&mut commands, STORE_WIDTH, STORE_HEIGHT);
+            let node = helpers::get_node(
+                &mut commands,
+                constants::STORE_WIDTH,
+                constants::STORE_HEIGHT,
+            );
             commands.entity(node).insert(SlotUi(slot_entity));
             stores.push(node);
 
             continue;
         }
 
-        let button = helpers::get_button(&mut commands, SLOT_SIZE, SLOT_SIZE);
+        let button = helpers::get_button(&mut commands, constants::SLOT_SIZE, constants::SLOT_SIZE);
 
         commands
             .entity(button)
@@ -68,22 +54,16 @@ pub fn draw_board(mut commands: Commands, board: Res<Board>) {
 
     assert_eq!(stores.len(), 2);
 
-    let board_width = SLOT_SIZE * (Board::COLS as f32)
-        + SLOT_GAP * ((Board::COLS - 1) as f32)
-        + 2. * STORE_WIDTH
-        + 2. * STORE_GAP;
-    let board_height = SLOT_SIZE * (Board::ROWS as f32) + SLOT_GAP * ((Board::ROWS - 1) as f32);
-
     let board_container = commands
         .spawn(NodeBundle {
             style: Style {
-                width: Val::Px(board_width),
-                height: Val::Px(board_height),
+                width: Val::Px(constants::BOARD_WIDTH),
+                height: Val::Px(constants::BOARD_HEIGHT),
                 display: Display::Flex,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(STORE_GAP),
+                column_gap: Val::Px(constants::STORE_GAP),
                 ..default()
             },
             ..default()

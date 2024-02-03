@@ -32,6 +32,15 @@ impl PartialEq for Player {
     }
 }
 
+impl ToString for Player {
+    fn to_string(&self) -> String {
+        match self {
+            Player::Player1 => "Player 1".to_string(),
+            Player::Player2 => "Player 2".to_string(),
+        }
+    }
+}
+
 #[derive(Event)]
 pub struct MoveEvent(pub u32, pub u32, pub VecDeque<Entity>);
 
@@ -198,8 +207,6 @@ fn handle_move(
 
                 moves.push_back(board.slots[index]);
             }
-
-            println!("Moves: {:?}", moves);
 
             move_events.send(MoveEvent(start_move, start_stack, moves));
 

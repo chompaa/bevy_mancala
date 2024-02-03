@@ -3,22 +3,19 @@ use std::collections::VecDeque;
 use crate::game::MoveEvent;
 
 use super::{
-    Animating, AnimationWaitEvent, MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles,
-    MoveAnimation, MoveAnimations,
+    constants, Animating, AnimationEndEvent, AnimationWaitEvent, MarbleEvent, MarbleEventKind,
+    MarbleOutlineEvent, Marbles, MoveAnimation, MoveAnimations,
 };
 
 use bevy::prelude::*;
 
-const MOVE_SPEED: f32 = 5.;
-const MOVE_TOLERANCE: f32 = 1.;
-
 pub fn handle_move(
     mut move_events: EventReader<MoveEvent>,
+    mut wait_events: EventWriter<AnimationWaitEvent>,
     marbles_query: Query<(Entity, &Marbles, &Transform)>,
     mut animations: ResMut<MoveAnimations>,
 ) {
-    for event in move_events.read() {
-        let MoveEvent(start_move, start_stack, moves) = event;
+    for MoveEvent(start_move, start_stack, moves) in move_events.read() {
         let mut slots = moves.clone();
         let start = slots.pop_front().unwrap();
 
@@ -40,12 +37,15 @@ pub fn handle_move(
                 queue,
             },
         );
+
+        wait_events.send_default();
     }
 }
 
 pub fn animate_move(
     mut commands: Commands,
     mut wait_events: EventWriter<AnimationWaitEvent>,
+    mut end_events: EventWriter<AnimationEndEvent>,
     mut marble_events: EventWriter<MarbleEvent>,
     mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
     mut entity_query: Query<(Entity, &mut Transform)>,
@@ -80,9 +80,12 @@ pub fn animate_move(
         // turn off the outline
         marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Hidden));
 
-        // if there is another move to animate, enable its outline
         if let Some((_, next)) = animations.map.clone().into_iter().next() {
+            // if there is another move to animate, enable its outline
             marble_outline_events.send(MarbleOutlineEvent(next.origin.0, Visibility::Visible));
+        } else {
+            // if there are no more moves to animate, send the end event
+            end_events.send_default();
         }
 
         animations.delay_timer.reset();
@@ -90,7 +93,9 @@ pub fn animate_move(
         return;
     }
 
-    commands.entity(entity).insert(Animating(animator.origin.1));
+    if animations.delay_timer.just_finished() {
+        commands.entity(entity).insert(Animating(animator.origin.1));
+    }
 
     let (slot, target) = {
         let next = animator.queue.get(0).unwrap();
@@ -101,7 +106,7 @@ pub fn animate_move(
 
     let distance = (target - transform.translation.xy()).length();
 
-    if distance < MOVE_TOLERANCE {
+    if distance < constants::MOVE_TOLERANCE {
         transform.translation = target.extend(1.);
         animator.queue.pop_front();
 
@@ -110,9 +115,10 @@ pub fn animate_move(
             MarbleEvent(MarbleEventKind::Add((slot, 1))),
         ]);
     } else {
-        transform.translation = transform
-            .translation
-            .lerp(target.extend(100.), MOVE_SPEED * time.delta_seconds());
+        transform.translation = transform.translation.lerp(
+            target.extend(100.),
+            constants::MOVE_SPEED * time.delta_seconds(),
+        );
     }
 
     // be sure to update the animation map

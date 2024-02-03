@@ -2,13 +2,8 @@ use std::cmp::max;
 
 use bevy::prelude::*;
 
-use super::{helpers, Animating, Label, Marbles, UiAssets};
+use super::{constants, helpers, Animating, Label, Marbles, UiAssets};
 use crate::game::{Board, Slot};
-
-const LABEL_SIZE: f32 = 64.0;
-const LABEL_SLOT_GAP_X: f32 = 12.;
-const LABEL_SLOT_GAP_Y: f32 = 208.0;
-const LABEL_STORE_GAP_X: f32 = 103.0;
 
 pub fn draw_labels(
     mut commands: Commands,
@@ -24,21 +19,11 @@ pub fn draw_labels(
 
     clear_labels(&mut commands, &label_query);
 
-    let screen = commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            ..default()
-        })
-        .id();
+    let screen = helpers::get_screen(&mut commands);
 
-    let width = LABEL_SIZE * (Board::COLS as f32) + LABEL_SLOT_GAP_X * ((Board::COLS - 1) as f32);
-    let height = LABEL_SIZE * (Board::ROWS as f32) + LABEL_SLOT_GAP_Y;
+    let width = constants::LABEL_SIZE * (Board::COLS as f32)
+        + constants::LABEL_SLOT_GAP_X * ((Board::COLS - 1) as f32);
+    let height = constants::LABEL_SIZE * (Board::ROWS as f32) + constants::LABEL_SLOT_GAP_Y;
 
     let labels_container = commands
         .spawn(NodeBundle {
@@ -50,8 +35,8 @@ pub fn draw_labels(
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: Val::Px(LABEL_SLOT_GAP_X),
-                row_gap: Val::Px(LABEL_SLOT_GAP_Y),
+                column_gap: Val::Px(constants::LABEL_SLOT_GAP_X),
+                row_gap: Val::Px(constants::LABEL_SLOT_GAP_Y),
                 ..default()
             },
             ..default()
@@ -66,7 +51,7 @@ pub fn draw_labels(
             &mut commands,
             Label(marbles.0),
             assets.as_ref(),
-            LABEL_SIZE,
+            constants::LABEL_SIZE,
             "0",
         );
 
@@ -99,7 +84,7 @@ pub fn draw_labels(
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(LABEL_STORE_GAP_X),
+                column_gap: Val::Px(constants::LABEL_STORE_GAP_X),
                 ..default()
             },
             ..default()

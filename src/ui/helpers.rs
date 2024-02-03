@@ -2,25 +2,36 @@ use super::UiAssets;
 use bevy::prelude::*;
 use rand::Rng;
 
-#[derive(Component)]
-pub struct PressableButton;
+pub fn get_screen(commands: &mut Commands) -> Entity {
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+            ..default()
+        })
+        .id()
+}
 
 pub fn get_button(commands: &mut Commands, width: f32, height: f32) -> Entity {
     commands
-        .spawn((
-            PressableButton,
-            ButtonBundle {
-                style: Style {
-                    width: Val::Px(width),
-                    height: Val::Px(height),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                background_color: Color::NONE.into(),
+        .spawn((ButtonBundle {
+            style: Style {
+                width: Val::Px(width),
+                height: Val::Px(height),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 ..default()
             },
-        ))
+            background_color: Color::NONE.into(),
+            ..default()
+        },))
         .id()
 }
 
@@ -35,6 +46,23 @@ pub fn get_node(commands: &mut Commands, width: f32, height: f32) -> Entity {
                 ..default()
             },
             background_color: Color::NONE.into(),
+            ..default()
+        })
+        .id()
+}
+
+pub fn get_text(commands: &mut Commands, assets: &UiAssets, value: &str) -> Entity {
+    commands
+        .spawn(TextBundle {
+            text: Text::from_section(
+                value,
+                TextStyle {
+                    font: assets.font.clone(),
+                    font_size: 40.0,
+                    color: Color::WHITE,
+                    ..default()
+                },
+            ),
             ..default()
         })
         .id()
