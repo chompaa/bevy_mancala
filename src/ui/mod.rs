@@ -20,23 +20,19 @@ impl Plugin for UiPlugin {
                 Update,
                 (
                     (board::clear_ui, board::draw_board).run_if(on_event::<ReloadUiEvent>()),
-                    board::spawn_marble_containers,
-                    board::draw_labels,
+                    board::draw_containers,
                     board::slot_action,
                     board::slot_hover,
                     board::handle_moves,
                 )
                     .chain(),
             )
+            .add_systems(SpawnScene, (board::draw_labels).chain())
             .add_systems(
                 PostUpdate,
-                (
-                    board::handle_marble_events,
-                    board::process_moves,
-                    board::update_labels.after(board::handle_marble_events),
-                )
-                    .chain(),
-            );
+                (board::handle_marble_events, board::process_moves).chain(),
+            )
+            .add_systems(Last, (board::update_labels));
     }
 }
 

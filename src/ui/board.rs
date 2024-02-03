@@ -315,7 +315,10 @@ pub fn update_labels(
             max((children.len() as i32) - stack, 0)
         };
 
+        println!("Updating label for {:?}, count: {:?}", marbles.0, count);
+
         for (mut text, label) in &mut label_query {
+            println!("Checking label: {:?} == {:?}", label.0, marbles.0);
             if label.0 == marbles.0 {
                 text.sections[0].value = count.to_string();
             }
@@ -409,7 +412,7 @@ pub fn handle_marble_events(
     }
 }
 
-pub fn spawn_marble_containers(
+pub fn draw_containers(
     mut commands: Commands,
     global_transform_query: Query<(&Style, &GlobalTransform, &SlotUi), Added<SlotUi>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
