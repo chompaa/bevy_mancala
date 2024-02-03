@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use bevy::prelude::*;
 
-use super::{helpers, Animating, Label, Marbles, MoveAnimation, UiAssets};
+use super::{helpers, Animating, Label, Marbles, UiAssets};
 use crate::game::{Board, Slot};
 
 const LABEL_SIZE: f32 = 64.0;

@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use crate::game::MoveEvent;
 
 use super::{
-    Animating, AnimationWaitEvent, MarbleEvent, MarbleEventKind, Marbles, MoveAnimation,
-    MoveAnimations,
+    Animating, AnimationWaitEvent, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent,
+    Marbles, MoveAnimation, MoveAnimations,
 };
 
 use bevy::prelude::*;
@@ -48,8 +48,9 @@ pub fn animate_move(
     mut commands: Commands,
     mut wait_events: EventWriter<AnimationWaitEvent>,
     mut marble_events: EventWriter<MarbleEvent>,
-    // mut animator_query: Query<(Entity, &mut MoveAnimation, &mut Transform)>,
+    mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
     mut entity_query: Query<(Entity, &mut Transform)>,
+    mut outline_query: Query<(&MarbleOutline, &mut Visibility)>,
     marbles_query: Query<&Marbles>,
     time: Res<Time>,
     mut animations: ResMut<MoveAnimations>,
@@ -73,10 +74,15 @@ pub fn animate_move(
         // reset the transform to the origin
         transform.translation = animator.origin.2.translation;
 
+        // turn off the outline
+        marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Hidden));
+
         return;
     }
 
     commands.entity(entity).insert(Animating(animator.origin.1));
+
+    marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Visible));
 
     let (slot, target) = {
         let next = animator.queue.get(0).unwrap();

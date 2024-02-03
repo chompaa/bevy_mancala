@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
 use super::{
-    helpers, Marbles, Outline, ReloadUiEvent, SlotButton, SlotHoverEvent, SlotPressEvent, SlotUi,
+    helpers, AnimationWaitEvent, MarbleOutline, MarbleOutlineEvent, Marbles, Outline,
+    ReloadUiEvent, SlotButton, SlotHoverEvent, SlotPressEvent, SlotUi,
 };
-use crate::game::Board;
+use crate::game::{Board, CurrentPlayer, Slot};
 
 const SLOT_SIZE: f32 = 64.0;
 const SLOT_GAP: f32 = 12.0;
@@ -98,20 +99,24 @@ pub fn draw_board(mut commands: Commands, board: Res<Board>) {
 
 pub fn handle_hover(
     mut slot_hover_events: EventReader<SlotHoverEvent>,
-    mut outline_query: Query<(&Outline, &mut Visibility)>,
+    mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
+    slot_query: Query<&Slot>,
+    current_player: Res<CurrentPlayer>,
 ) {
     for event in slot_hover_events.read() {
-        for (outline, mut visibility) in outline_query.iter_mut() {
-            if outline.0 != event.0 {
-                continue;
-            }
+        let slot = slot_query.get(event.0).unwrap();
 
-            *visibility = if event.1 {
-                Visibility::Visible
-            } else {
-                Visibility::Hidden
-            };
+        if Board::owner(slot.index) != current_player.0 {
+            continue;
         }
+
+        let visibility = if event.1 {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+
+        marble_outline_events.send(MarbleOutlineEvent(event.0, visibility));
     }
 }
 
@@ -123,7 +128,13 @@ pub fn handle_action(
     mut interaction_query: Query<(&Interaction, &SlotUi), (With<Button>, With<SlotButton>)>,
     mut slot_press_events: EventWriter<SlotPressEvent>,
     mut slot_hover_events: EventWriter<SlotHoverEvent>,
+    mut animation_wait_events: EventReader<AnimationWaitEvent>,
 ) {
+    // no actions should be performed while we animate
+    if animation_wait_events.read().count() > 0 {
+        return;
+    }
+
     // leave events
     for (interaction, slot_ui) in &mut changed_interaction_query {
         match *interaction {

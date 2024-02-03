@@ -39,7 +39,7 @@ pub struct MoveEvent(pub u32, pub u32, pub VecDeque<Entity>);
 pub struct SlotActionEvent(pub Entity);
 
 #[derive(Resource, Debug)]
-struct CurrentPlayer(pub Player);
+pub struct CurrentPlayer(pub Player);
 
 impl Default for CurrentPlayer {
     fn default() -> Self {
@@ -160,6 +160,12 @@ fn handle_move(
     mut move_events: EventWriter<MoveEvent>,
 ) {
     for event in slot_press_events.read() {
+        let slot = slot_query.get(event.0).unwrap();
+
+        if slot.count == 0 || Board::owner(slot.index) != current_player.0 {
+            continue;
+        }
+
         let mut counts: Vec<u32> = vec![0; Board::LENGTH];
 
         for slot in &mut slot_query.iter() {

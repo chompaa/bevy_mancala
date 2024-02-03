@@ -1,6 +1,9 @@
 use crate::game::Slot;
 
-use super::{helpers, MarbleEvent, MarbleEventKind, Marbles, Outline, SlotUi, UiAssets};
+use super::{
+    helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles, Outline,
+    SlotUi, UiAssets,
+};
 
 use bevy::{
     prelude::*,
@@ -82,7 +85,7 @@ pub fn handle_marble_events(
                                 }),
                                 ..default()
                             },
-                            Outline(*entity),
+                            MarbleOutline(*entity),
                         ))
                         .id();
 
@@ -105,6 +108,19 @@ pub fn handle_marble_events(
                 } else {
                     println!("No children found for {:?}", container);
                 }
+            }
+        }
+    }
+}
+
+pub fn handle_marble_outline(
+    mut outline_query: Query<(&MarbleOutline, &mut Visibility)>,
+    mut marble_outline_events: EventReader<MarbleOutlineEvent>,
+) {
+    for MarbleOutlineEvent(slot, visibility) in marble_outline_events.read() {
+        for (outline, mut outline_visibility) in outline_query.iter_mut() {
+            if *slot == outline.0 {
+                *outline_visibility = *visibility;
             }
         }
     }

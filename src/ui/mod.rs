@@ -17,6 +17,7 @@ impl Plugin for UiPlugin {
             .add_event::<ReloadUiEvent>()
             .add_event::<AnimationWaitEvent>()
             .add_event::<MarbleEvent>()
+            .add_event::<MarbleOutlineEvent>()
             .add_event::<SlotPressEvent>()
             .add_event::<SlotHoverEvent>()
             .init_resource::<MoveAnimations>()
@@ -26,6 +27,7 @@ impl Plugin for UiPlugin {
                 (
                     (board::clear_ui, board::draw_board).run_if(on_event::<ReloadUiEvent>()),
                     marbles::draw_containers,
+                    marbles::handle_marble_outline,
                     board::handle_action,
                     board::handle_hover,
                     animations::handle_move,
@@ -66,6 +68,9 @@ pub struct MarbleEvent(pub MarbleEventKind);
 #[derive(Event, Default)]
 pub struct AnimationWaitEvent;
 
+#[derive(Event)]
+pub struct MarbleOutlineEvent(pub Entity, pub Visibility);
+
 #[derive(Component)]
 pub struct SlotButton;
 
@@ -79,7 +84,7 @@ pub struct Marbles(Entity, Vec2, Vec2);
 pub struct Marble;
 
 #[derive(Component)]
-pub struct Outline(Entity);
+pub struct MarbleOutline(Entity);
 
 #[derive(Component)]
 pub struct Label(Entity);
