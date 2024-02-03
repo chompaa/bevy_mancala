@@ -164,10 +164,6 @@ fn setup_slots(
             slot.count = 0;
             commands.spawn((slot, Store)).id()
         } else {
-            if index != 5 {
-                slot.count = 0;
-            }
-
             commands.spawn(slot).id()
         };
 
