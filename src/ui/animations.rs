@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::game::MoveEvent;
+use crate::game::{MoveEvent, Slot};
 
 use super::{
     constants, Animating, AnimationEndEvent, AnimationWaitEvent, MarbleEvent, MarbleEventKind,
@@ -49,6 +49,7 @@ pub fn animate_move(
     mut marble_events: EventWriter<MarbleEvent>,
     mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
     mut entity_query: Query<(Entity, &mut Transform)>,
+    slot_query: Query<&Slot>,
     marbles_query: Query<&Marbles>,
     time: Res<Time>,
     mut animations: ResMut<MoveAnimations>,
@@ -95,19 +96,30 @@ pub fn animate_move(
 
     if animations.delay_timer.just_finished() {
         commands.entity(entity).insert(Animating(animator.origin.1));
+        transform.translation.z = 100.;
     }
 
     let (slot, target) = {
         let next = animator.queue.get(0).unwrap();
         let marble = marbles_query.get(*next).unwrap();
+        let slot = slot_query.get(marble.0).unwrap();
 
-        (marble.0, marble.1)
+        let direction = {
+            if slot.index % 2 == 0 {
+                1.
+            } else {
+                -1.
+            }
+        };
+        let mut target = marble.1;
+        target.y += 10. * direction;
+
+        (marble.0, target)
     };
 
     let distance = (target - transform.translation.xy()).length();
 
     if distance < constants::MOVE_TOLERANCE {
-        transform.translation = target.extend(1.);
         animator.queue.pop_front();
 
         marble_events.send_batch(vec![
@@ -115,10 +127,10 @@ pub fn animate_move(
             MarbleEvent(MarbleEventKind::Add((slot, 1))),
         ]);
     } else {
-        transform.translation = transform.translation.lerp(
-            target.extend(100.),
-            constants::MOVE_SPEED * time.delta_seconds(),
-        );
+        let difference = target - transform.translation.xy();
+
+        transform.translation +=
+            difference.extend(0.) / distance * constants::MOVE_SPEED * time.delta_seconds();
     }
 
     // be sure to update the animation map

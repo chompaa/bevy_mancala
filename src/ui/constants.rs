@@ -21,5 +21,5 @@ pub const BOARD_HEIGHT: f32 =
 
 pub const MARBLE_SIZE: f32 = 48.0;
 
-pub const MOVE_SPEED: f32 = 5.;
-pub const MOVE_TOLERANCE: f32 = 1.;
+pub const MOVE_SPEED: f32 = 100.;
+pub const MOVE_TOLERANCE: f32 = 2.;
