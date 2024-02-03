@@ -92,6 +92,9 @@ pub struct Label(Entity);
 #[derive(Component)]
 pub struct Stack;
 
+#[derive(Component)]
+pub struct Animating(pub u32);
+
 #[derive(Clone)]
 pub struct MoveAnimation {
     pub entity: Entity,
@@ -107,9 +110,6 @@ impl Default for MoveAnimations {
         Self(BTreeMap::default())
     }
 }
-
-#[derive(Component)]
-pub struct Animating(pub u32);
 
 #[derive(Resource)]
 pub struct UiAssets {

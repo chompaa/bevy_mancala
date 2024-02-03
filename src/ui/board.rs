@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use super::{
-    helpers, AnimationWaitEvent, MarbleOutline, MarbleOutlineEvent, Marbles, Outline,
-    ReloadUiEvent, SlotButton, SlotHoverEvent, SlotPressEvent, SlotUi,
+    helpers, AnimationWaitEvent, MarbleOutlineEvent, Marbles, ReloadUiEvent, SlotButton,
+    SlotHoverEvent, SlotPressEvent, SlotUi,
 };
 use crate::game::{Board, CurrentPlayer, Slot};
 

@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use crate::game::MoveEvent;
 
 use super::{
-    Animating, AnimationWaitEvent, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent,
-    Marbles, MoveAnimation, MoveAnimations,
+    Animating, AnimationWaitEvent, MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles,
+    MoveAnimation, MoveAnimations,
 };
 
 use bevy::prelude::*;
@@ -13,7 +13,6 @@ const MOVE_SPEED: f32 = 5.;
 const MOVE_TOLERANCE: f32 = 1.;
 
 pub fn handle_move(
-    mut commands: Commands,
     mut move_events: EventReader<MoveEvent>,
     marbles_query: Query<(Entity, &Marbles, &Transform)>,
     mut animations: ResMut<MoveAnimations>,
@@ -50,7 +49,6 @@ pub fn animate_move(
     mut marble_events: EventWriter<MarbleEvent>,
     mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
     mut entity_query: Query<(Entity, &mut Transform)>,
-    mut outline_query: Query<(&MarbleOutline, &mut Visibility)>,
     marbles_query: Query<&Marbles>,
     time: Res<Time>,
     mut animations: ResMut<MoveAnimations>,

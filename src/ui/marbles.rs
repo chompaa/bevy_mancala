@@ -1,8 +1,8 @@
 use crate::game::Slot;
 
 use super::{
-    helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles, Outline,
-    SlotUi, UiAssets,
+    helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles, SlotUi,
+    UiAssets,
 };
 
 use bevy::{
