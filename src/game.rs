@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::ui::{board::SlotPressEvent, ReloadUiEvent, UiPlugin};
+use crate::ui::{ReloadUiEvent, SlotPressEvent, UiPlugin};
 use crate::GameState;
 use bevy::prelude::*;
 
@@ -60,6 +60,8 @@ pub struct Board {
 
 impl Board {
     pub const LENGTH: usize = 14;
+    pub const ROWS: usize = 2;
+    pub const COLS: usize = 6;
 
     pub fn is_store(index: usize) -> bool {
         index == (Board::LENGTH - 1) / 2 || index == Board::LENGTH - 1
@@ -190,6 +192,8 @@ fn handle_move(
 
                 moves.push_back(board.slots[index]);
             }
+
+            println!("Moves: {:?}", moves);
 
             move_events.send(MoveEvent(start_move, start_stack, moves));
 
