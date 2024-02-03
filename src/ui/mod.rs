@@ -103,11 +103,17 @@ pub struct MoveAnimation {
 }
 
 #[derive(Resource)]
-pub struct MoveAnimations(pub BTreeMap<u32, MoveAnimation>);
+pub struct MoveAnimations {
+    pub map: BTreeMap<u32, MoveAnimation>,
+    pub delay_timer: Timer,
+}
 
 impl Default for MoveAnimations {
     fn default() -> Self {
-        Self(BTreeMap::default())
+        Self {
+            map: BTreeMap::default(),
+            delay_timer: Timer::from_seconds(0.5, TimerMode::Once),
+        }
     }
 }
 

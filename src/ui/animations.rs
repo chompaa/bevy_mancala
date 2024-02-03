@@ -32,7 +32,7 @@ pub fn handle_move(
 
         let (marbles, _, transform) = marbles_query.iter().find(|(_, m, _)| m.0 == start).unwrap();
 
-        animations.0.insert(
+        animations.map.insert(
             *start_move,
             MoveAnimation {
                 entity: marbles,
@@ -53,19 +53,24 @@ pub fn animate_move(
     time: Res<Time>,
     mut animations: ResMut<MoveAnimations>,
 ) {
-    if animations.0.is_empty() {
+    if animations.map.is_empty() {
         return;
     }
 
     wait_events.send_default();
 
-    let (move_start, mut animator) = animations.0.clone().into_iter().next().unwrap();
+    if !animations.delay_timer.finished() {
+        animations.delay_timer.tick(time.delta());
+        return;
+    }
+
+    let (move_start, mut animator) = animations.map.clone().into_iter().next().unwrap();
     // let (entity, mut animator, mut transform) = animator_query.get_mut(entity).unwrap();
     let (entity, mut transform) = entity_query.get_mut(animator.entity).unwrap();
 
     // check if there are no more moves to process
     if animator.queue.is_empty() {
-        animations.0.remove(&move_start);
+        animations.map.remove(&move_start);
 
         commands.entity(entity).remove::<Animating>();
 
@@ -75,12 +80,17 @@ pub fn animate_move(
         // turn off the outline
         marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Hidden));
 
+        // if there is another move to animate, enable its outline
+        if let Some((_, next)) = animations.map.clone().into_iter().next() {
+            marble_outline_events.send(MarbleOutlineEvent(next.origin.0, Visibility::Visible));
+        }
+
+        animations.delay_timer.reset();
+
         return;
     }
 
     commands.entity(entity).insert(Animating(animator.origin.1));
-
-    marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Visible));
 
     let (slot, target) = {
         let next = animator.queue.get(0).unwrap();
@@ -106,5 +116,5 @@ pub fn animate_move(
     }
 
     // be sure to update the animation map
-    animations.0.insert(move_start, animator);
+    animations.map.insert(move_start, animator);
 }
