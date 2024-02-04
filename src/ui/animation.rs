@@ -133,11 +133,11 @@ pub fn animate_move(
         // turn off the outline
         marble_outline_events.send(MarbleOutlineEvent(animator.slot, Visibility::Hidden));
 
-        if let Some((_, next)) = animations.map.clone().into_iter().next() {
-            // if there is another move to animate, enable its outline
+        if let Some((_, next)) = animations.map.iter().next() {
+            // there is another move to animate, enable its outline
             marble_outline_events.send(MarbleOutlineEvent(next.slot, Visibility::Visible));
         } else {
-            // if there are no more moves to animate, send the end event
+            // there are no more moves to animate, send the end event
             end_events.send_default();
         }
 
