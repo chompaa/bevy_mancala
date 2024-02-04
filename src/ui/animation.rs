@@ -7,8 +7,9 @@ use super::marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles};
 use bevy::prelude::*;
 
 pub const MOVE_SPEED: f32 = 150.;
-pub const MOVE_TOLERANCE: f32 = 2.;
+pub const MOVE_TOLERANCE: f32 = 5.;
 pub const MOVE_OFFSET: f32 = 10.;
+pub const MOVE_SCALE: f32 = 0.1;
 
 pub struct AnimationPlugin;
 
@@ -34,7 +35,10 @@ pub struct AnimationEndEvent;
 #[derive(Clone)]
 pub struct MoveAnimation {
     pub entity: Entity,
-    pub origin: (Entity, u32, Transform),
+    pub slot: Entity,
+    pub stack: u32,
+    pub origin: Transform,
+    pub previous: Vec2,
     pub queue: VecDeque<Entity>,
 }
 
@@ -77,7 +81,10 @@ pub fn handle_move(
             *start_move,
             MoveAnimation {
                 entity: marbles,
-                origin: (start, *start_stack, *transform),
+                slot: start,
+                stack: *start_stack,
+                origin: *transform,
+                previous: transform.translation.xy(),
                 queue,
             },
         );
@@ -119,15 +126,16 @@ pub fn animate_move(
 
         commands.entity(entity).remove::<Animating>();
 
-        // reset the transform to the origin
-        transform.translation = animator.origin.2.translation;
+        // be sure to reset the stack's transform
+        transform.translation = animator.origin.translation;
+        transform.scale = Vec3::splat(1.);
 
         // turn off the outline
-        marble_outline_events.send(MarbleOutlineEvent(animator.origin.0, Visibility::Hidden));
+        marble_outline_events.send(MarbleOutlineEvent(animator.slot, Visibility::Hidden));
 
         if let Some((_, next)) = animations.map.clone().into_iter().next() {
             // if there is another move to animate, enable its outline
-            marble_outline_events.send(MarbleOutlineEvent(next.origin.0, Visibility::Visible));
+            marble_outline_events.send(MarbleOutlineEvent(next.slot, Visibility::Visible));
         } else {
             // if there are no more moves to animate, send the end event
             end_events.send_default();
@@ -139,7 +147,8 @@ pub fn animate_move(
     }
 
     if animations.delay_timer.just_finished() {
-        commands.entity(entity).insert(Animating(animator.origin.1));
+        commands.entity(entity).insert(Animating(animator.stack));
+        // ensure the stack is above all slots
         transform.translation.z = 100.;
     }
 
@@ -166,18 +175,39 @@ pub fn animate_move(
 
     if distance < MOVE_TOLERANCE {
         animator.queue.pop_front();
+        animator.previous = target;
 
         marble_events.send_batch(vec![
-            MarbleEvent(MarbleEventKind::Del((animator.origin.0, 1))),
+            MarbleEvent(MarbleEventKind::Del((animator.slot, 1))),
             MarbleEvent(MarbleEventKind::Add((slot, 1))),
         ]);
-    } else {
-        let difference = target - transform.translation.xy();
 
-        transform.translation +=
-            difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
+        // be sure to update the animation map
+        animations.map.insert(move_start, animator);
+
+        return;
     }
 
-    // be sure to update the animation map
-    animations.map.insert(move_start, animator);
+    let total_distance = (target - animator.previous).length();
+    let difference = target - transform.translation.xy();
+    let travelled = total_distance - difference.length();
+
+    // elapsed can be negative if the stack overshoots the target, so clamp it to 0.
+    let elapsed = f32::max(travelled / total_distance, 0.);
+    let curve = bezier_blend(elapsed);
+
+    let scale = if elapsed > 0.3 {
+        // remove from stack scale based on curve
+        (1. + MOVE_SCALE) - MOVE_SCALE * curve
+    } else {
+        // add to stack scale based on curve
+        1. + (MOVE_SCALE / 0.3) * curve
+    };
+
+    transform.scale = Vec3::splat(scale);
+    transform.translation += difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
+}
+
+fn bezier_blend(time: f32) -> f32 {
+    time.powi(2) * (3. - 2. * time)
 }
