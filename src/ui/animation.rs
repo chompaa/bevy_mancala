@@ -6,9 +6,9 @@ use super::marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles};
 
 use bevy::prelude::*;
 
-pub const MOVE_SPEED: f32 = 150.;
+pub const MOVE_SPEED: f32 = 175.;
 pub const MOVE_TOLERANCE: f32 = 5.;
-pub const MOVE_OFFSET: f32 = 10.;
+pub const MOVE_OFFSET: f32 = 5.;
 pub const MOVE_SCALE: f32 = 0.1;
 
 pub struct AnimationPlugin;
@@ -188,11 +188,15 @@ pub fn animate_move(
         return;
     }
 
-    let total_distance = (target - animator.previous).length();
     let difference = target - transform.translation.xy();
+
+    transform.translation += difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
+
+    let total_distance = (target - animator.previous).length();
     let travelled = total_distance - difference.length();
 
     // elapsed can be negative if the stack overshoots the target, so clamp it to 0.
+    // note: since elapsed depends on the transform, we don't need to worry about delta time
     let elapsed = f32::max(travelled / total_distance, 0.);
     let curve = bezier_blend(elapsed);
 
@@ -205,7 +209,6 @@ pub fn animate_move(
     };
 
     transform.scale = Vec3::splat(scale);
-    transform.translation += difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
 }
 
 fn bezier_blend(time: f32) -> f32 {
