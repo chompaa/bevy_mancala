@@ -1,8 +1,16 @@
 use crate::game::GameOverEvent;
 
-use super::{helpers, AnimationWaitEvent, UiAssets};
+use super::{animation::AnimationWaitEvent, helpers, UiAssets};
 
 use bevy::prelude::*;
+
+pub struct GameOverPlugin;
+
+impl Plugin for GameOverPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, draw_game_over_screen);
+    }
+}
 
 pub fn draw_game_over_screen(
     mut commands: Commands,

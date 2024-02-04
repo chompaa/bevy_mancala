@@ -1,15 +1,43 @@
 use crate::game::Slot;
 
-use super::{
-    constants, helpers, MarbleEvent, MarbleEventKind, MarbleOutline, MarbleOutlineEvent, Marbles,
-    SlotUi, UiAssets,
-};
+use super::{board::SlotUi, helpers, UiAssets};
 
 use bevy::{
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef},
-    sprite::{Material2d, MaterialMesh2dBundle, Mesh2dHandle},
+    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle},
 };
+
+pub const MARBLE_SIZE: f32 = 48.0;
+
+pub struct MarblePlugin;
+
+impl Plugin for MarblePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(Material2dPlugin::<OutlineMaterial>::default())
+            .add_event::<MarbleEvent>()
+            .add_event::<MarbleOutlineEvent>()
+            .add_systems(Update, (draw_containers, handle_marble_outline))
+            .add_systems(PostUpdate, handle_marble_events);
+    }
+}
+
+pub enum MarbleEventKind {
+    Add((Entity, u32)),
+    Del((Entity, u32)),
+}
+
+#[derive(Event)]
+pub struct MarbleEvent(pub MarbleEventKind);
+
+#[derive(Event)]
+pub struct MarbleOutlineEvent(pub Entity, pub Visibility);
+
+#[derive(Component)]
+pub struct Marbles(pub Entity, pub Vec2, pub Vec2);
+
+#[derive(Component)]
+pub struct MarbleOutline(Entity);
 
 #[derive(AsBindGroup, TypePath, Asset, Debug, Clone)]
 pub struct OutlineMaterial {
@@ -57,9 +85,7 @@ pub fn handle_marble_events(
                     let sprite = commands
                         .spawn(SpriteBundle {
                             sprite: Sprite {
-                                custom_size: Some(
-                                    (constants::MARBLE_SIZE, constants::MARBLE_SIZE).into(),
-                                ),
+                                custom_size: Some((MARBLE_SIZE, MARBLE_SIZE).into()),
                                 ..default()
                             },
                             texture: ui_assets.marble.clone(),
@@ -69,7 +95,7 @@ pub fn handle_marble_events(
                         .id();
 
                     let mesh = Mesh2dHandle(meshes.add(Mesh::from(shape::Quad {
-                        size: Vec2::new(constants::MARBLE_SIZE, constants::MARBLE_SIZE),
+                        size: Vec2::new(MARBLE_SIZE, MARBLE_SIZE),
                         flip: false,
                     })));
 
@@ -146,8 +172,8 @@ pub fn draw_containers(
             let height = style.height.resolve(0., Vec2::ZERO).unwrap();
 
             Vec2::new(
-                width / 2. - constants::MARBLE_SIZE / 3.,
-                height / 2. - constants::MARBLE_SIZE / 3.,
+                width / 2. - MARBLE_SIZE / 3.,
+                height / 2. - MARBLE_SIZE / 3.,
             )
         };
 

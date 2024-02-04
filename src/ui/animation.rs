@@ -1,13 +1,57 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::game::{MoveEvent, Slot};
 
-use super::{
-    constants, Animating, AnimationEndEvent, AnimationWaitEvent, MarbleEvent, MarbleEventKind,
-    MarbleOutlineEvent, Marbles, MoveAnimation, MoveAnimations,
-};
+use super::marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles};
 
 use bevy::prelude::*;
+
+pub const MOVE_SPEED: f32 = 150.;
+pub const MOVE_TOLERANCE: f32 = 2.;
+pub const MOVE_OFFSET: f32 = 10.;
+
+pub struct AnimationPlugin;
+
+impl Plugin for AnimationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<AnimationWaitEvent>()
+            .add_event::<AnimationEndEvent>()
+            .init_resource::<MoveAnimations>()
+            .add_systems(Update, handle_move)
+            .add_systems(PostUpdate, animate_move);
+    }
+}
+
+#[derive(Component)]
+pub struct Animating(pub u32);
+
+#[derive(Event, Default)]
+pub struct AnimationWaitEvent;
+
+#[derive(Event, Default)]
+pub struct AnimationEndEvent;
+
+#[derive(Clone)]
+pub struct MoveAnimation {
+    pub entity: Entity,
+    pub origin: (Entity, u32, Transform),
+    pub queue: VecDeque<Entity>,
+}
+
+#[derive(Resource)]
+pub struct MoveAnimations {
+    pub map: BTreeMap<u32, MoveAnimation>,
+    pub delay_timer: Timer,
+}
+
+impl Default for MoveAnimations {
+    fn default() -> Self {
+        Self {
+            map: BTreeMap::default(),
+            delay_timer: Timer::from_seconds(0.5, TimerMode::Once),
+        }
+    }
+}
 
 pub fn handle_move(
     mut move_events: EventReader<MoveEvent>,
@@ -111,15 +155,16 @@ pub fn animate_move(
                 -1.
             }
         };
+
         let mut target = marble.1;
-        target.y += 10. * direction;
+        target.y += MOVE_OFFSET * direction;
 
         (marble.0, target)
     };
 
     let distance = (target - transform.translation.xy()).length();
 
-    if distance < constants::MOVE_TOLERANCE {
+    if distance < MOVE_TOLERANCE {
         animator.queue.pop_front();
 
         marble_events.send_batch(vec![
@@ -130,7 +175,7 @@ pub fn animate_move(
         let difference = target - transform.translation.xy();
 
         transform.translation +=
-            difference.extend(0.) / distance * constants::MOVE_SPEED * time.delta_seconds();
+            difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
     }
 
     // be sure to update the animation map

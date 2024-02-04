@@ -2,7 +2,28 @@ use bevy::prelude::*;
 
 use crate::game::{CurrentPlayer, Player};
 
-use super::{constants, helpers, AnimationEndEvent, PlayerLabel, UiAssets};
+use super::{
+    animation::AnimationEndEvent,
+    board::{BOARD_HEIGHT, BOARD_WIDTH},
+    helpers, ReloadUiEvent, UiAssets,
+};
+
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (
+                draw_labels.run_if(on_event::<ReloadUiEvent>()),
+                update_labels,
+            ),
+        );
+    }
+}
+
+#[derive(Component)]
+pub struct PlayerLabel(pub Player);
 
 pub fn draw_labels(
     mut commands: Commands,
@@ -48,8 +69,8 @@ pub fn draw_labels(
         .spawn(NodeBundle {
             style: Style {
                 display: Display::Flex,
-                width: Val::Px(constants::BOARD_WIDTH),
-                height: Val::Px(constants::BOARD_HEIGHT),
+                width: Val::Px(BOARD_WIDTH),
+                height: Val::Px(BOARD_HEIGHT),
                 ..default()
             },
             ..default()

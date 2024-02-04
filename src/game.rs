@@ -1,10 +1,10 @@
 use std::collections::VecDeque;
 
-use crate::ui::{ReloadUiEvent, SlotPressEvent, UiPlugin};
+use crate::ui::{board::SlotPressEvent, ReloadUiEvent, UiPlugin};
 use crate::GameState;
 use bevy::prelude::*;
 
-const SLOT_START_AMOUNT: u32 = 1;
+const SLOT_START_AMOUNT: u32 = 6;
 
 #[derive(Default, Debug)]
 pub enum Player {
@@ -46,9 +46,6 @@ pub struct MoveEvent(pub u32, pub u32, pub VecDeque<Entity>);
 
 #[derive(Event, Default)]
 pub struct MoveEndEvent;
-
-#[derive(Event)]
-pub struct SlotActionEvent(pub Entity);
 
 #[derive(Event)]
 pub struct GameOverEvent(pub Option<Player>);
@@ -104,9 +101,6 @@ impl Default for Board {
         Self { slots: vec![] }
     }
 }
-
-#[derive(Component)]
-struct SlotStack;
 
 #[derive(Component)]
 pub struct Slot {
