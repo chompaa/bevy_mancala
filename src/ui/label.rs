@@ -2,7 +2,12 @@ use std::cmp::max;
 
 use bevy::prelude::*;
 
-use super::{animation::Animating, helpers, marble::Marbles, UiAssets};
+use super::{
+    animation::{Animating, Stack},
+    helpers,
+    marble::Marbles,
+    UiAssets,
+};
 use crate::game::{Board, Slot};
 
 pub const LABEL_SIZE: f32 = 64.0;
@@ -119,24 +124,21 @@ pub fn draw_labels(
 
 pub fn update_labels(
     mut label_query: Query<(&mut Text, &Label)>,
-    changed_query: Query<
-        (&Children, &Marbles, Option<&Animating>),
-        (Changed<Children>, With<Marbles>),
-    >,
+    changed_query: Query<Entity, (Changed<Children>, With<Marbles>)>,
+    marbles_query: Query<(Option<&Children>, &Marbles), Without<Stack>>,
 ) {
-    for (children, marbles, animating) in &changed_query {
-        let count = {
-            let stack = if let Some(animating) = animating {
-                animating.0 as i32
-            } else {
-                0
-            };
+    if changed_query.iter().count() == 0 {
+        return;
+    }
 
-            max((children.len() as i32) - stack, 0)
-        };
-
+    for (children, marbles) in &marbles_query {
         for (mut text, label) in &mut label_query {
             if label.0 == marbles.0 {
+                let count = match children {
+                    Some(children) => children.len(),
+                    None => 0,
+                };
+
                 text.sections[0].value = count.to_string();
             }
         }

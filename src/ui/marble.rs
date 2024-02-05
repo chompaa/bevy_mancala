@@ -23,7 +23,7 @@ impl Plugin for MarblePlugin {
 }
 
 pub enum MarbleEventKind {
-    Add((Entity, u32)),
+    Add((Entity, u32, Option<Vec2>)),
     Del((Entity, u32)),
 }
 
@@ -67,14 +67,18 @@ pub fn handle_marble_events(
 ) {
     for MarbleEvent(event) in marble_events.read() {
         match event {
-            MarbleEventKind::Add((entity, count)) => {
+            MarbleEventKind::Add((slot, count, offset)) => {
                 let (container, marbles) = marbles_query
                     .iter()
-                    .find(|(_, marbles)| marbles.0 == *entity)
+                    .find(|(_, marbles)| marbles.0 == *slot)
                     .unwrap();
 
                 for _ in 0..*count {
-                    let offset = helpers::random_point_in_circle(marbles.2).extend(0.);
+                    let offset = match offset {
+                        Some(offset) => *offset,
+                        None => helpers::random_point_in_circle(marbles.2),
+                    }
+                    .extend(0.);
 
                     let wrapper = commands
                         .spawn(SpatialBundle::from_transform(Transform::from_translation(
@@ -111,7 +115,7 @@ pub fn handle_marble_events(
                                 }),
                                 ..default()
                             },
-                            MarbleOutline(*entity),
+                            MarbleOutline(*slot),
                         ))
                         .id();
 
@@ -120,19 +124,20 @@ pub fn handle_marble_events(
                 }
             }
             MarbleEventKind::Del((entity, count)) => {
-                let (container, _) = marbles_query
+                let (container, _) = match marbles_query
                     .iter()
                     .find(|(_, marbles)| marbles.0 == *entity)
-                    .unwrap();
+                {
+                    Some((container, marbles)) => (container, marbles),
+                    None => {
+                        return;
+                    }
+                };
 
                 if let Ok(children) = children_query.get_mut(container) {
-                    // let take = children.len() - (*count as usize);
-
                     for child in children.iter().take(*count as usize) {
                         commands.entity(*child).despawn_recursive();
                     }
-                } else {
-                    println!("No children found for {:?}", container);
                 }
             }
         }
@@ -187,6 +192,6 @@ pub fn draw_containers(
 
         let count = slot_query.get(slot_ui.0).unwrap().count;
 
-        marble_events.send(MarbleEvent(MarbleEventKind::Add((slot_ui.0, count))));
+        marble_events.send(MarbleEvent(MarbleEventKind::Add((slot_ui.0, count, None))));
     }
 }
