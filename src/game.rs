@@ -1,10 +1,31 @@
 use std::collections::VecDeque;
 
+use crate::states;
 use crate::ui::{board::SlotPressEvent, ReloadUiEvent, UiPlugin};
-use crate::GameState;
+
 use bevy::prelude::*;
+use states::AppState;
 
 const SLOT_START_AMOUNT: u32 = 6;
+
+pub struct GamePlugin;
+
+impl Plugin for GamePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(UiPlugin)
+            .init_resource::<CurrentPlayer>()
+            .init_resource::<Board>()
+            .add_event::<MoveEvent>()
+            .add_event::<MoveEndEvent>()
+            .add_event::<GameOverEvent>()
+            .add_systems(OnEnter(AppState::Game), setup_slots)
+            .add_systems(
+                Update,
+                (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
+                    .run_if(in_state(AppState::Game)),
+            );
+    }
+}
 
 #[derive(Default, Debug)]
 pub enum Player {
@@ -49,6 +70,12 @@ pub struct MoveEndEvent;
 
 #[derive(Event)]
 pub struct GameOverEvent(pub Option<Player>);
+
+#[derive(Component)]
+pub struct Slot {
+    pub index: usize,
+    pub count: u32,
+}
 
 #[derive(Resource, Debug)]
 pub struct CurrentPlayer(pub Player);
@@ -102,34 +129,6 @@ impl Default for Board {
     }
 }
 
-#[derive(Component)]
-pub struct Slot {
-    pub index: usize,
-    pub count: u32,
-}
-
-#[derive(Component, Debug)]
-pub struct Store;
-
-pub struct GamePlugin;
-
-impl Plugin for GamePlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(UiPlugin)
-            .init_resource::<CurrentPlayer>()
-            .init_resource::<Board>()
-            .add_event::<MoveEvent>()
-            .add_event::<MoveEndEvent>()
-            .add_event::<GameOverEvent>()
-            .add_systems(OnEnter(GameState::Game), setup_slots)
-            .add_systems(
-                Update,
-                (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
-                    .run_if(in_state(GameState::Game)),
-            );
-    }
-}
-
 fn setup_slots(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -149,18 +148,16 @@ fn setup_slots(
     });
 
     for index in 0..Board::LENGTH {
-        let mut slot = Slot {
+        let slot = Slot {
             index,
-            count: SLOT_START_AMOUNT,
+            count: if Board::is_store(index) {
+                0
+            } else {
+                SLOT_START_AMOUNT
+            },
         };
 
-        let entity = if Board::is_store(index) {
-            slot.count = 0;
-            commands.spawn((slot, Store)).id()
-        } else {
-            commands.spawn(slot).id()
-        };
-
+        let entity = commands.spawn(slot).id();
         board.slots.push(entity)
     }
 

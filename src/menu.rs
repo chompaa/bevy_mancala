@@ -1,12 +1,14 @@
-use crate::GameState;
+use crate::states;
+
 use bevy::prelude::*;
+use states::AppState;
 
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Menu), setup)
-            .add_systems(OnExit(GameState::Menu), despawn::<OnMenu>)
+        app.add_systems(OnEnter(AppState::Menu), setup)
+            .add_systems(OnExit(AppState::Menu), despawn::<OnMenu>)
             .add_systems(Update, (button_system, button_action));
     }
 }
@@ -96,7 +98,7 @@ fn button_system(
 
 fn button_action(
     interaction_query: Query<(&Interaction, &ButtonAction)>,
-    mut game_state: ResMut<NextState<GameState>>,
+    mut game_state: ResMut<NextState<AppState>>,
 ) {
     for (interaction, action) in &interaction_query {
         if *interaction != Interaction::Pressed {
@@ -104,7 +106,7 @@ fn button_action(
         }
 
         match *action {
-            ButtonAction::Play => game_state.set(GameState::Game),
+            ButtonAction::Play => game_state.set(AppState::Game),
         }
     }
 }

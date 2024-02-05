@@ -2,19 +2,14 @@ use bevy::prelude::*;
 
 mod game;
 mod menu;
+mod states;
 mod ui;
-
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-enum GameState {
-    #[default]
-    Menu,
-    Game,
-}
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .add_state::<GameState>()
+        .add_state::<states::AppState>()
+        .add_state::<states::GameMode>()
         .add_systems(Startup, setup)
         .add_plugins((menu::MenuPlugin, game::GamePlugin))
         .run();
