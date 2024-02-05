@@ -75,7 +75,8 @@ pub fn handle_marble_events(
 
                 for _ in 0..*count {
                     let offset = match offset {
-                        Some(offset) => *offset,
+                        // don't allow the marbles to be placed "outside" the container
+                        Some(offset) => offset.clamp_length_max(marbles.2.y),
                         None => helpers::random_point_in_circle(marbles.2),
                     }
                     .extend(0.);

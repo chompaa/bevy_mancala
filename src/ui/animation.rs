@@ -1,14 +1,16 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::game::{MoveEvent, Slot};
+use crate::game::{Board, MoveEvent, Slot};
 
 use super::marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles};
 
 use bevy::prelude::*;
+use rand::Rng;
 
 pub const MOVE_SPEED: f32 = 175.;
 pub const MOVE_TOLERANCE: f32 = 5.;
-pub const MOVE_OFFSET: f32 = 5.;
+pub const MOVE_SLOT_OFFSET: f32 = 4.;
+pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
 
 pub struct AnimationPlugin;
@@ -41,7 +43,7 @@ pub struct MoveAnimation {
     pub original: Entity,
     pub slot: Entity,
     pub previous: Vec2,
-    pub queue: VecDeque<Entity>,
+    pub queue: VecDeque<(Entity, Vec2)>,
 }
 
 #[derive(Resource)]
@@ -64,17 +66,33 @@ pub fn handle_move(
     mut move_events: EventReader<MoveEvent>,
     mut wait_events: EventWriter<AnimationWaitEvent>,
     marbles_query: Query<(Entity, &Marbles, &Transform)>,
+    slot_query: Query<&Slot>,
     mut animations: ResMut<MoveAnimations>,
 ) {
-    for MoveEvent(start_move, start_stack, moves) in move_events.read() {
+    for MoveEvent(start_move, moves) in move_events.read() {
         let mut slots = moves.clone();
         let start = slots.pop_front().unwrap();
 
-        let mut queue: VecDeque<Entity> = VecDeque::new();
+        let mut queue: VecDeque<(Entity, Vec2)> = VecDeque::new();
+
+        let mut rng = rand::thread_rng();
 
         for slot in slots {
             if let Some((entity, _, _)) = marbles_query.iter().find(|(_, m, _)| m.0 == slot) {
-                queue.push_back(entity);
+                if let Ok(component) = slot_query.get(slot) {
+                    let offset;
+
+                    if Board::is_store(component.index) {
+                        offset = rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET);
+                    } else {
+                        offset = match component.index % 2 {
+                            0 => MOVE_SLOT_OFFSET,
+                            _ => -MOVE_SLOT_OFFSET,
+                        };
+                    }
+
+                    queue.push_back((entity, Vec2::new(0., offset)));
+                }
             }
         }
 
@@ -117,7 +135,6 @@ pub fn animate_move(
     mut marble_events: EventWriter<MarbleEvent>,
     mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
     mut transform_query: Query<&mut Transform>,
-    slot_query: Query<&Slot>,
     marbles_query: Query<&Marbles>,
     mut children_query: Query<&Children>,
     time: Res<Time>,
@@ -168,23 +185,11 @@ pub fn animate_move(
         }
     }
 
-    let (slot, target) = {
-        let next = animator.queue.get(0).unwrap();
-        let marbles = marbles_query.get(*next).unwrap();
-        let slot = slot_query.get(marbles.0).unwrap();
+    let (slot, target, offset) = {
+        let (entity, offset) = *animator.queue.get(0).unwrap();
+        let marbles = marbles_query.get(entity).unwrap();
 
-        let direction = {
-            if slot.index % 2 == 0 {
-                1.
-            } else {
-                -1.
-            }
-        };
-
-        let mut target = marbles.1;
-        target.y += MOVE_OFFSET * direction;
-
-        (marbles.0, target)
+        (marbles.0, marbles.1 + offset, offset)
     };
 
     let distance = (target - transform.translation.xy()).length();
@@ -199,13 +204,11 @@ pub fn animate_move(
             transform_query.get(children[0]).unwrap().clone()
         };
 
+        let location = marble_transform.translation.xy() + offset;
+
         marble_events.send_batch(vec![
             MarbleEvent(MarbleEventKind::Del((animator.entity, 1))),
-            MarbleEvent(MarbleEventKind::Add((
-                slot,
-                1,
-                Some(marble_transform.translation.xy()),
-            ))),
+            MarbleEvent(MarbleEventKind::Add((slot, 1, Some(location)))),
         ]);
 
         // be sure to update the animation map

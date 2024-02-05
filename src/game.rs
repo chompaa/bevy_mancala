@@ -42,7 +42,7 @@ impl ToString for Player {
 }
 
 #[derive(Event)]
-pub struct MoveEvent(pub u32, pub u32, pub VecDeque<Entity>);
+pub struct MoveEvent(pub u32, pub VecDeque<Entity>);
 
 #[derive(Event, Default)]
 pub struct MoveEndEvent;
@@ -198,7 +198,6 @@ fn handle_move(
             counts[index] = 0;
 
             let start_move = move_count;
-            let start_stack = stack;
             moves.push_back(board.slots[index]);
 
             while stack > 0 {
@@ -215,7 +214,7 @@ fn handle_move(
                 moves.push_back(board.slots[index]);
             }
 
-            move_events.send(MoveEvent(start_move, start_stack, moves));
+            move_events.send(MoveEvent(start_move, moves));
 
             if Board::owner(index) == current_player.0 && Board::is_store(index) {
                 // if we end in our own store, we get another turn
