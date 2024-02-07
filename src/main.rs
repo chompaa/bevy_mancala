@@ -11,7 +11,7 @@ fn main() {
         .add_state::<states::AppState>()
         .add_state::<states::GameMode>()
         .add_systems(Startup, setup)
-        .add_plugins((menu::MenuPlugin, game::GamePlugin))
+        .add_plugins((ui::UiPlugin, menu::MenuPlugin, game::GamePlugin))
         .run();
 }
 

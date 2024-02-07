@@ -56,7 +56,7 @@ impl Default for MoveAnimations {
     fn default() -> Self {
         Self {
             map: BTreeMap::default(),
-            delay_timer: Timer::from_seconds(0.5, TimerMode::Once),
+            delay_timer: Timer::from_seconds(0.75, TimerMode::Once),
         }
     }
 }

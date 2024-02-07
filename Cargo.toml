@@ -6,7 +6,10 @@ edition = "2021"
 [dependencies]
 bevy = { version = "0.12.0", features = ["dynamic_linking"] }
 bevy_pixel_camera = "0.12.1"
+bevy_common_assets = { version = "0.9.0", features = ["ron"] }
 rand = "0.8.5"
+serde = "1.0.196"
+
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

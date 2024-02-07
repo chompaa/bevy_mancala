@@ -1,25 +1,19 @@
 use bevy::prelude::*;
 
-mod animation;
-mod assets;
+pub mod animation;
+pub mod assets;
 pub mod board;
-mod game_over;
+pub mod game_over;
 mod helpers;
-mod label;
-mod marble;
-mod player;
+pub mod label;
+pub mod marble;
+pub mod player;
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(board::BoardPlugin)
-            .add_plugins(animation::AnimationPlugin)
-            .add_plugins(marble::MarblePlugin)
-            .add_plugins(player::PlayerPlugin)
-            .add_plugins(label::LabelPlugin)
-            .add_plugins(game_over::GameOverPlugin)
-            .add_event::<ReloadUiEvent>()
+        app.add_event::<ReloadUiEvent>()
             .add_systems(Startup, assets::load_assets);
     }
 }
@@ -36,5 +30,6 @@ impl Default for ReloadUiEvent {
 #[derive(Resource)]
 pub struct UiAssets {
     pub font: Handle<Font>,
+    pub title: Handle<Image>,
     pub marble: Handle<Image>,
 }

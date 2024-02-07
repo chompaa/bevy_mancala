@@ -1,7 +1,11 @@
 use std::collections::VecDeque;
 
 use crate::states;
-use crate::ui::{board::SlotPressEvent, ReloadUiEvent, UiPlugin};
+use crate::ui::{
+    animation::AnimationPlugin, board::BoardPlugin, board::SlotPressEvent,
+    game_over::GameOverPlugin, label::LabelPlugin, marble::MarblePlugin, player::PlayerPlugin,
+    ReloadUiEvent,
+};
 
 use bevy::prelude::*;
 use states::AppState;
@@ -12,18 +16,25 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(UiPlugin)
-            .init_resource::<CurrentPlayer>()
-            .init_resource::<Board>()
-            .add_event::<MoveEvent>()
-            .add_event::<MoveEndEvent>()
-            .add_event::<GameOverEvent>()
-            .add_systems(OnEnter(AppState::Game), setup_slots)
-            .add_systems(
-                Update,
-                (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
-                    .run_if(in_state(AppState::Game)),
-            );
+        app.add_plugins((
+            AnimationPlugin,
+            BoardPlugin,
+            GameOverPlugin,
+            LabelPlugin,
+            MarblePlugin,
+            PlayerPlugin,
+        ))
+        .init_resource::<CurrentPlayer>()
+        .init_resource::<Board>()
+        .add_event::<MoveEvent>()
+        .add_event::<MoveEndEvent>()
+        .add_event::<GameOverEvent>()
+        .add_systems(OnEnter(AppState::Game), setup_slots)
+        .add_systems(
+            Update,
+            (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
+                .run_if(in_state(AppState::Game)),
+        );
     }
 }
 
