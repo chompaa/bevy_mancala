@@ -4,22 +4,16 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 use states::AppState;
 
-const NORMAL_BUTTON: Color = Color::rgb(1.0, 1.0, 1.0);
-const HOVERED_BUTTON: Color = Color::rgb(0.9, 0.9, 0.9);
-const PRESSED_BUTTON: Color = Color::rgb(0.3, 0.3, 0.3);
-const NORMAL_TEXT: Color = Color::rgb(0.3, 0.3, 0.3);
-const PRESSED_TEXT: Color = Color::rgb(1.0, 1.0, 1.0);
-
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<MenuState>()
             .add_systems(OnEnter(AppState::Menu), start)
-            .add_systems(OnExit(AppState::Menu), despawn::<OnSelect>)
-            .add_systems(OnExit(MenuState::Start), despawn::<OnStart>)
-            .add_systems(OnEnter(MenuState::Select), select)
-            .add_systems(OnExit(MenuState::Select), despawn::<ButtonAction>)
+            .add_systems(OnExit(AppState::Menu), despawn::<Main>)
+            .add_systems(OnExit(MenuState::Start), despawn::<Hint>)
+            .add_systems(OnEnter(MenuState::Mode), mode)
+            .add_systems(OnExit(MenuState::Mode), despawn::<Main>)
             .add_systems(
                 Update,
                 (blink, listen)
@@ -37,7 +31,8 @@ impl Plugin for MenuPlugin {
 pub enum MenuState {
     #[default]
     Start,
-    Select,
+    Mode,
+    Profile,
 }
 
 #[derive(Component)]
@@ -47,13 +42,16 @@ enum ButtonAction {
 }
 
 #[derive(Component)]
-struct OnStart;
+struct Main;
+
+#[derive(Component)]
+struct Hint;
 
 #[derive(Component)]
 struct Blink;
 
 #[derive(Component)]
-struct OnSelect;
+struct OnMode;
 
 fn start(mut commands: Commands, ui_assets: Res<UiAssets>) {
     let screen = commands
@@ -71,7 +69,7 @@ fn start(mut commands: Commands, ui_assets: Res<UiAssets>) {
                 },
                 ..default()
             },
-            OnStart,
+            Main,
         ))
         .id();
 
@@ -96,17 +94,20 @@ fn start(mut commands: Commands, ui_assets: Res<UiAssets>) {
         .id();
 
     let hint = commands
-        .spawn(NodeBundle {
-            style: Style {
-                width: Val::Percent(100.),
-                height: Val::Percent(50.),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::FlexStart,
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.),
+                    height: Val::Percent(50.),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::FlexStart,
+                    ..default()
+                },
                 ..default()
             },
-            ..default()
-        })
+            Hint,
+        ))
         .with_children(|parent| {
             parent.spawn((
                 TextBundle {
@@ -138,28 +139,26 @@ fn blink(mut query: Query<&mut Text, With<Blink>>, time: Res<Time>) {
 
 fn listen(mut key_evr: EventReader<KeyboardInput>, mut menu_state: ResMut<NextState<MenuState>>) {
     if key_evr.read().next().is_some() {
-        menu_state.set(MenuState::Select);
+        menu_state.set(MenuState::Mode);
     }
 }
 
-fn select(mut commands: Commands, ui_materials: Res<UiAssets>) {
-    let screen = commands
-        .spawn((
-            NodeBundle {
-                style: Style {
-                    display: Display::Flex,
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(40.0),
-                    ..default()
-                },
+fn mode(mut commands: Commands, ui_materials: Res<UiAssets>, query: Query<Entity, With<Main>>) {
+    let screen = query.single();
+
+    let container = commands
+        .spawn((NodeBundle {
+            style: Style {
+                display: Display::Flex,
+                width: Val::Percent(100.0),
+                height: Val::Percent(50.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_direction: FlexDirection::Row,
                 ..default()
             },
-            OnSelect,
-        ))
+            ..default()
+        },))
         .id();
 
     let game_modes: Vec<(&str, ButtonAction)> = vec![
@@ -169,6 +168,20 @@ fn select(mut commands: Commands, ui_materials: Res<UiAssets>) {
 
     for mode in game_modes {
         let (text, action) = mode;
+
+        let node = commands
+            .spawn(NodeBundle {
+                style: Style {
+                    display: Display::Flex,
+                    width: Val::Percent(25.),
+                    height: Val::Percent(100.),
+                    align_items: AlignItems::FlexStart,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
 
         let button = commands
             .spawn((
@@ -199,8 +212,11 @@ fn select(mut commands: Commands, ui_materials: Res<UiAssets>) {
             })
             .id();
 
-        commands.entity(screen).add_child(button);
+        commands.entity(node).add_child(button);
+        commands.entity(container).add_child(node);
     }
+
+    commands.entity(screen).push_children(&[container]);
 }
 
 fn button_system(
