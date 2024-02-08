@@ -1,6 +1,7 @@
 use crate::states;
 use crate::ui::UiAssets;
 use bevy::input::keyboard::KeyboardInput;
+use bevy::input::mouse::MouseButtonInput;
 use bevy::prelude::*;
 use states::AppState;
 
@@ -137,8 +138,12 @@ fn blink(mut query: Query<&mut Text, With<Blink>>, time: Res<Time>) {
     }
 }
 
-fn listen(mut key_evr: EventReader<KeyboardInput>, mut menu_state: ResMut<NextState<MenuState>>) {
-    if key_evr.read().next().is_some() {
+fn listen(
+    mut key_evr: EventReader<KeyboardInput>,
+    mut mouse_evr: EventReader<MouseButtonInput>,
+    mut menu_state: ResMut<NextState<MenuState>>,
+) {
+    if key_evr.read().next().is_some() || mouse_evr.read().next().is_some() {
         menu_state.set(MenuState::Mode);
     }
 }
