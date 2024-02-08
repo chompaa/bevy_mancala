@@ -1,7 +1,6 @@
+use super::{animation::Stack, helpers, marble::Marbles, Board, Slot};
+use crate::ui::UiAssets;
 use bevy::prelude::*;
-
-use super::{animation::Stack, helpers, marble::Marbles, UiAssets};
-use crate::game::{Board, Slot};
 
 pub const LABEL_SIZE: f32 = 64.0;
 pub const LABEL_SLOT_GAP_X: f32 = 12.;

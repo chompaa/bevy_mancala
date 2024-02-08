@@ -1,12 +1,11 @@
-use bevy::prelude::*;
-
 use super::{
     animation::AnimationWaitEvent,
     helpers,
     marble::{MarbleOutlineEvent, Marbles},
-    ReloadUiEvent,
 };
 use crate::game::{Board, CurrentPlayer, Slot};
+use crate::ui::ReloadUiEvent;
+use bevy::prelude::*;
 
 pub const SLOT_SIZE: f32 = 64.0;
 pub const SLOT_GAP: f32 = 12.0;

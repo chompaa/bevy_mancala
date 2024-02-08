@@ -1,14 +1,17 @@
+use crate::states;
+use crate::ui::ReloadUiEvent;
+use bevy::prelude::*;
+use board::SlotPressEvent;
+use states::AppState;
 use std::collections::VecDeque;
 
-use crate::states;
-use crate::ui::{
-    animation::AnimationPlugin, board::BoardPlugin, board::SlotPressEvent,
-    game_over::GameOverPlugin, label::LabelPlugin, marble::MarblePlugin, player::PlayerPlugin,
-    ReloadUiEvent,
-};
-
-use bevy::prelude::*;
-use states::AppState;
+mod animation;
+mod board;
+mod game_over;
+mod helpers;
+mod label;
+mod marble;
+mod player;
 
 const SLOT_START_AMOUNT: u32 = 6;
 
@@ -17,12 +20,12 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            AnimationPlugin,
-            BoardPlugin,
-            GameOverPlugin,
-            LabelPlugin,
-            MarblePlugin,
-            PlayerPlugin,
+            animation::AnimationPlugin,
+            board::BoardPlugin,
+            game_over::GameOverPlugin,
+            label::LabelPlugin,
+            marble::MarblePlugin,
+            player::PlayerPlugin,
         ))
         .init_resource::<CurrentPlayer>()
         .init_resource::<Board>()

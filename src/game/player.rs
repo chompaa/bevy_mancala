@@ -1,12 +1,11 @@
-use bevy::prelude::*;
-
-use crate::game::{CurrentPlayer, Player};
-
 use super::{
     animation::AnimationEndEvent,
     board::{BOARD_HEIGHT, BOARD_WIDTH},
-    helpers, ReloadUiEvent, UiAssets,
+    helpers,
 };
+use crate::game::{CurrentPlayer, Player};
+use crate::ui::{ReloadUiEvent, UiAssets};
+use bevy::prelude::*;
 
 pub struct PlayerPlugin;
 

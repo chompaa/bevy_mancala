@@ -1,8 +1,8 @@
+use super::{
+    marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles},
+    Board, MoveEvent, Slot,
+};
 use std::collections::{BTreeMap, VecDeque};
-
-use crate::game::{Board, MoveEvent, Slot};
-
-use super::marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles};
 
 use bevy::prelude::*;
 use rand::Rng;

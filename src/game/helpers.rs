@@ -1,4 +1,4 @@
-use super::UiAssets;
+use crate::ui::UiAssets;
 use bevy::prelude::*;
 use rand::Rng;
 

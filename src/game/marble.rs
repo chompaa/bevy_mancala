@@ -1,6 +1,6 @@
+use super::{board::SlotUi, helpers};
 use crate::game::Slot;
-
-use super::{board::SlotUi, helpers, UiAssets};
+use crate::ui::UiAssets;
 
 use bevy::{
     prelude::*,

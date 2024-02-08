@@ -1,7 +1,6 @@
+use super::{animation::AnimationWaitEvent, helpers};
 use crate::game::GameOverEvent;
-
-use super::{animation::AnimationWaitEvent, helpers, UiAssets};
-
+use crate::ui::UiAssets;
 use bevy::prelude::*;
 
 pub struct GameOverPlugin;
