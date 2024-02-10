@@ -1,5 +1,5 @@
 use super::{
-    animation::AnimationWaitEvent,
+    animation::AnimationState,
     helpers,
     marble::{MarbleOutlineEvent, Marbles},
 };
@@ -31,7 +31,7 @@ impl Plugin for BoardPlugin {
                 Update,
                 (
                     (clear_ui, draw_board).run_if(on_event::<ReloadUiEvent>()),
-                    handle_action,
+                    handle_action.run_if(in_state(AnimationState::Idle)),
                     handle_hover,
                 ),
             );
@@ -148,13 +148,7 @@ pub fn handle_action(
     mut interaction_query: Query<(&Interaction, &SlotUi), (With<Button>, With<SlotButton>)>,
     mut slot_press_events: EventWriter<SlotPressEvent>,
     mut slot_hover_events: EventWriter<SlotHoverEvent>,
-    mut animation_wait_events: EventReader<AnimationWaitEvent>,
 ) {
-    // no actions should be performed while we animate
-    if animation_wait_events.read().count() > 0 {
-        return;
-    }
-
     // leave events
     for (interaction, slot_ui) in &mut changed_interaction_query {
         match *interaction {

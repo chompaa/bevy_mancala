@@ -253,7 +253,10 @@ fn button_action(
                 app_state.set(AppState::Game);
                 game_state.set(states::GameMode::Avalanche);
             }
-            ButtonAction::Capture => {}
+            ButtonAction::Capture => {
+                app_state.set(AppState::Game);
+                game_state.set(states::GameMode::Capture);
+            }
         }
     }
 }

@@ -1,13 +1,12 @@
-use crate::states;
+use crate::states::{AppState, GameMode};
 use crate::ui::ReloadUiEvent;
 use bevy::prelude::*;
 use board::SlotPressEvent;
-use states::AppState;
 use std::collections::VecDeque;
+use std::ops::Range;
 
 mod animation;
 mod board;
-mod game_over;
 mod helpers;
 mod label;
 mod marble;
@@ -22,7 +21,6 @@ impl Plugin for GamePlugin {
         app.add_plugins((
             animation::AnimationPlugin,
             board::BoardPlugin,
-            game_over::GameOverPlugin,
             label::LabelPlugin,
             marble::MarblePlugin,
             player::PlayerPlugin,
@@ -30,18 +28,19 @@ impl Plugin for GamePlugin {
         .init_resource::<CurrentPlayer>()
         .init_resource::<Board>()
         .add_event::<MoveEvent>()
-        .add_event::<MoveEndEvent>()
+        .add_event::<CaptureEvent>()
         .add_event::<GameOverEvent>()
         .add_systems(OnEnter(AppState::Game), setup_slots)
         .add_systems(
             Update,
             (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
-                .run_if(in_state(AppState::Game)),
+                .run_if(in_state(AppState::Game))
+                .chain(),
         );
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum Player {
     #[default]
     Player1,
@@ -79,8 +78,11 @@ impl ToString for Player {
 #[derive(Event)]
 pub struct MoveEvent(pub u32, pub VecDeque<Entity>);
 
-#[derive(Event, Default)]
-pub struct MoveEndEvent;
+#[derive(Event, Clone)]
+pub struct CaptureEvent {
+    slots: Vec<Entity>,
+    store: Entity,
+}
 
 #[derive(Event)]
 pub struct GameOverEvent(pub Option<Player>);
@@ -113,11 +115,27 @@ pub struct Board {
 
 impl Board {
     pub const LENGTH: usize = 14;
+    pub const STORE_1: usize = (Board::LENGTH - 1) / 2;
+    pub const STORE_2: usize = Board::LENGTH - 1;
     pub const ROWS: usize = 2;
     pub const COLS: usize = 6;
 
     pub fn is_store(index: usize) -> bool {
-        index == (Board::LENGTH - 1) / 2 || index == Board::LENGTH - 1
+        index == Board::STORE_1 || index == Board::STORE_2
+    }
+
+    pub fn get_store(player: Player) -> usize {
+        match player {
+            Player::Player1 => Board::STORE_1,
+            Player::Player2 => Board::STORE_2,
+        }
+    }
+
+    pub fn get_slots(player: Player) -> Range<usize> {
+        match player {
+            Player::Player1 => 0..Board::STORE_1,
+            Player::Player2 => Board::STORE_1 + 1..Board::STORE_2,
+        }
     }
 
     pub fn owner(index: usize) -> Player {
@@ -162,7 +180,7 @@ fn setup_slots(
     });
 
     for index in 0..Board::LENGTH {
-        let slot = Slot {
+        let mut slot = Slot {
             index,
             count: if Board::is_store(index) {
                 0
@@ -180,11 +198,12 @@ fn setup_slots(
 
 fn handle_move(
     board: Res<Board>,
+    game_mode: Res<State<GameMode>>,
     mut current_player: ResMut<CurrentPlayer>,
     mut slot_query: Query<&mut Slot>,
     mut slot_press_events: EventReader<SlotPressEvent>,
     mut move_events: EventWriter<MoveEvent>,
-    mut move_end_events: EventWriter<MoveEndEvent>,
+    mut capture_events: EventWriter<CaptureEvent>,
 ) {
     for event in slot_press_events.read() {
         let slot = slot_query.get(event.0).unwrap();
@@ -214,7 +233,8 @@ fn handle_move(
             while stack > 0 {
                 index = (index + 1) % Board::LENGTH;
 
-                if Board::is_store(index) && Board::owner(index) != current_player.0 {
+                if index == Board::get_store(current_player.0.flip()) {
+                    // skip the opponent's store
                     continue;
                 }
 
@@ -227,63 +247,120 @@ fn handle_move(
 
             move_events.send(MoveEvent(start_move, moves));
 
-            if Board::owner(index) == current_player.0 && Board::is_store(index) {
+            if index == Board::get_store(current_player.0) {
                 // if we end in our own store, we get another turn
                 break;
             }
 
-            if counts[index] == 1 {
-                current_player.flip();
-                break;
+            if *game_mode.get() == GameMode::Capture
+                && counts[index] == 1
+                && Board::owner(index) == current_player.0
+            {
+                let opposite_index = Board::LENGTH - index - 2;
+
+                if counts[opposite_index] > 0 {
+                    counts[index] = 0;
+                    counts[opposite_index] = 0;
+
+                    let store = Board::get_store(current_player.0.clone());
+
+                    counts[store] += 2;
+
+                    capture_events.send(CaptureEvent {
+                        slots: vec![board.slots[index], board.slots[opposite_index]],
+                        store: board.slots[store],
+                    });
+
+                    break;
+                }
             }
+
+            if *game_mode.get() == GameMode::Avalanche && counts[index] > 1 {
+                continue;
+            }
+
+            current_player.flip();
+            break;
         }
 
         for mut slot in &mut slot_query {
             slot.count = counts[slot.index];
         }
-
-        move_end_events.send_default();
     }
 }
 
 fn check_game_over(
     mut game_over_events: EventWriter<GameOverEvent>,
+    capture_events: EventWriter<CaptureEvent>,
     slot_query: Query<&Slot>,
     board: Res<Board>,
+    game_mode: Res<State<GameMode>>,
 ) {
-    let mut player_1_score = 0;
-    let mut player_2_score = 0;
+    let slots = &board.slots.clone();
 
-    let mut player_1_empty = true;
-    let mut player_2_empty = true;
+    let mut scores = (0, 0);
+    let mut empty = (true, true);
 
-    for slot in &board.slots {
+    for slot in slots {
         if let Ok(slot) = slot_query.get(*slot) {
-            if Board::is_store(slot.index) {
-                match Board::owner(slot.index) {
-                    Player::Player1 => player_1_score += slot.count,
-                    Player::Player2 => player_2_score += slot.count,
+            match Board::owner(slot.index) {
+                Player::Player1 => {
+                    if Board::is_store(slot.index) {
+                        scores.0 = slot.count;
+                    } else if slot.count > 0 {
+                        empty.0 = false;
+                    }
                 }
-            } else if slot.count > 0 {
-                match Board::owner(slot.index) {
-                    Player::Player1 => player_1_empty = false,
-                    Player::Player2 => player_2_empty = false,
+                Player::Player2 => {
+                    if Board::is_store(slot.index) {
+                        scores.1 = slot.count;
+                    } else if slot.count > 0 {
+                        empty.1 = false;
+                    }
                 }
             }
         }
     }
 
-    if !player_1_empty && !player_2_empty {
+    if !empty.0 && !empty.1 {
         return;
     }
 
-    let winner: Option<Player> = if player_1_score > player_2_score {
+    if *game_mode.get() == GameMode::Capture {
+        if !empty.0 {
+            scores.0 += capture_side(capture_events, slot_query, &Player::Player1, slots)
+        } else if !empty.1 {
+            scores.1 += capture_side(capture_events, slot_query, &Player::Player2, slots)
+        }
+    }
+
+    let winner: Option<Player> = if scores.0 > scores.1 {
         Some(Player::Player1)
-    } else if player_2_score > player_1_score {
+    } else if scores.1 > scores.0 {
         Some(Player::Player2)
     } else {
         None
     };
 
     game_over_events.send(GameOverEvent(winner));
+}
+
+fn capture_side(
+    mut capture_events: EventWriter<CaptureEvent>,
+    slot_query: Query<&Slot>,
+    player: &Player,
+    slots: &Vec<Entity>,
+) -> u32 {
+    let slot_slice = Board::get_slots(*player);
+    let store_index = Board::get_store(*player);
+
+    capture_events.send(CaptureEvent {
+        slots: slots[slot_slice.clone()].to_vec(),
+        store: slots[store_index],
+    });
+
+    slots[slot_slice].iter().fold(0, |acc, slot| {
+        let count = slot_query.get(*slot).unwrap().count;
+        acc + count
+    })
 }

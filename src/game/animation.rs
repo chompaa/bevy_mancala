@@ -1,11 +1,13 @@
-use super::{
-    marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles},
-    Board, MoveEvent, Slot,
-};
-use std::collections::{BTreeMap, VecDeque};
+use crate::ui::UiAssets;
 
-use bevy::prelude::*;
+use super::{
+    helpers,
+    marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles},
+    Board, CaptureEvent, GameOverEvent, MoveEvent, Slot,
+};
+use bevy::{ecs::system::SystemState, prelude::*};
 use rand::Rng;
+use std::collections::VecDeque;
 
 pub const MOVE_SPEED: f32 = 175.;
 pub const MOVE_TOLERANCE: f32 = 5.;
@@ -13,63 +15,327 @@ pub const MOVE_SLOT_OFFSET: f32 = 4.;
 pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
 
+pub const CAPTURE_SPEED: f32 = 225.;
+
+pub const FADE_SPEED: f32 = 5.;
+
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<AnimationWaitEvent>()
-            .add_event::<AnimationEndEvent>()
-            .init_resource::<MoveAnimations>()
-            .add_systems(Update, handle_move)
-            .add_systems(FixedUpdate, animate_move);
+        app.add_state::<AnimationState>()
+            .init_resource::<AnimationQueue>()
+            .add_systems(Update, (handle_move, update_state))
+            .add_systems(Update, handle_capture.after(handle_move))
+            .add_systems(Update, handle_game_over.after(handle_capture))
+            .add_systems(FixedUpdate, animation_tick);
     }
 }
+pub trait Animation: Send + Sync {
+    fn init(&mut self, world: &mut World);
+    fn tick(&mut self, world: &mut World);
+    fn cleanup(&mut self, world: &mut World);
+    fn is_started(&self) -> bool;
+    fn is_finished(&self) -> bool;
+}
 
-#[derive(Component)]
-pub struct Animating(pub u32);
-
-#[derive(Component)]
-pub struct Stack;
-
-#[derive(Event, Default)]
-pub struct AnimationWaitEvent;
-
-#[derive(Event, Default)]
-pub struct AnimationEndEvent;
-
-#[derive(Clone)]
 pub struct MoveAnimation {
+    pub started: bool,
     pub entity: Entity,
     pub original: Entity,
     pub slot: Entity,
     pub previous: Vec2,
-    pub queue: VecDeque<(Entity, Vec2)>,
+    pub moves: VecDeque<(Entity, Vec2)>,
 }
 
-#[derive(Resource)]
-pub struct MoveAnimations {
-    pub map: BTreeMap<u32, MoveAnimation>,
-    pub delay_timer: Timer,
+impl Animation for MoveAnimation {
+    fn init(&mut self, world: &mut World) {
+        let children: Vec<Entity> = match world.get::<Children>(self.original) {
+            Some(entities) => entities.iter().copied().collect(),
+            _ => Vec::new(),
+        };
+
+        world.entity_mut(self.entity).push_children(&children);
+        world.send_event(MarbleOutlineEvent(self.slot, Visibility::Visible));
+
+        self.started = true;
+    }
+
+    fn tick(&mut self, world: &mut World) {
+        let mut system_state: SystemState<(
+            EventWriter<MarbleEvent>,
+            Query<&mut Transform>,
+            Query<&Marbles>,
+            Query<&Children>,
+            Res<Time>,
+        )> = SystemState::new(world);
+
+        let (mut marble_events, mut transform_query, marbles_query, children_query, time) =
+            system_state.get_mut(world);
+
+        let mut transform = transform_query.get_mut(self.entity).unwrap();
+
+        let (slot, target, offset) = {
+            let (entity, offset) = *self.moves.get(0).unwrap();
+            let marbles = marbles_query.get(entity).unwrap();
+
+            (marbles.0, marbles.1 + offset, offset)
+        };
+
+        let delta = target - transform.translation.xy();
+        let distance = delta.length();
+
+        if distance < MOVE_TOLERANCE {
+            self.moves.pop_front();
+            self.previous = target;
+
+            let marble_transform = {
+                let children = children_query.get(self.entity).unwrap();
+                // the `Del` event will always take the first child
+                transform_query.get(children[0]).unwrap()
+            };
+
+            let location = marble_transform.translation.xy() + offset;
+
+            marble_events.send_batch(vec![
+                MarbleEvent(MarbleEventKind::Del((self.entity, 1))),
+                MarbleEvent(MarbleEventKind::Add((slot, 1, Some(location)))),
+            ]);
+
+            return;
+        }
+
+        transform.translation += delta.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
+
+        let total_distance = (target - self.previous).length();
+        let travelled = total_distance - delta.length();
+
+        // elapsed can be negative if the stack overshoots the target, so clamp it to 0.
+        // note: since elapsed depends on the transform, we don't need to worry about delta time
+        let elapsed = f32::max(travelled / total_distance, 0.);
+        let curve = bezier_blend(elapsed);
+
+        let scale = if elapsed > 0.3 {
+            // remove from stack scale based on curve
+            (1. + MOVE_SCALE) - MOVE_SCALE * curve
+        } else {
+            // add to stack scale based on curve
+            1. + (MOVE_SCALE / 0.3) * curve
+        };
+
+        transform.scale = Vec3::splat(scale);
+    }
+
+    fn cleanup(&mut self, world: &mut World) {
+        world.send_event(MarbleOutlineEvent(self.slot, Visibility::Hidden));
+        world.entity_mut(self.entity).despawn_recursive();
+    }
+
+    fn is_started(&self) -> bool {
+        self.started
+    }
+
+    fn is_finished(&self) -> bool {
+        self.moves.is_empty()
+    }
 }
 
-impl Default for MoveAnimations {
-    fn default() -> Self {
-        Self {
-            map: BTreeMap::default(),
-            delay_timer: Timer::from_seconds(0.75, TimerMode::Once),
+struct CaptureAnimation {
+    started: bool,
+    target: Entity,
+    moves: Vec<(Entity, Entity)>,
+    finished: Vec<Entity>,
+}
+
+impl Animation for CaptureAnimation {
+    fn init(&mut self, world: &mut World) {
+        for (original, container) in self.moves.iter() {
+            let mut children: Vec<Entity> = match world.get::<Children>(*original) {
+                Some(entities) => entities.iter().copied().collect(),
+                _ => Vec::new(),
+            };
+
+            let translation: Vec2 = world.get::<Transform>(*container).unwrap().translation.xy();
+
+            let mut rng = rand::thread_rng();
+
+            for child in children.iter_mut() {
+                let offset = (
+                    rng.gen_range(-MOVE_SLOT_OFFSET..=MOVE_SLOT_OFFSET),
+                    rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET),
+                );
+                world
+                    .entity_mut(*child)
+                    .insert(Offset(Vec2::new(-translation.x + offset.0, offset.1)));
+            }
+
+            world.entity_mut(*container).push_children(&children);
+        }
+
+        self.started = true;
+    }
+
+    fn tick(&mut self, world: &mut World) {
+        let mut system_state: SystemState<(
+            EventWriter<MarbleEvent>,
+            Query<&mut Transform>,
+            Query<&Offset>,
+            Query<&Marbles>,
+            Query<&Children>,
+            Res<Time>,
+        )> = SystemState::new(world);
+
+        let (
+            mut marble_events,
+            mut transform_query,
+            offset_query,
+            marbles_query,
+            children_query,
+            time,
+        ) = system_state.get_mut(world);
+
+        for (_, container) in self.moves.iter_mut() {
+            let children = children_query.get(*container).unwrap();
+            let marbles = marbles_query.get(self.target).unwrap();
+            let mut moving = false;
+
+            for child in children.iter() {
+                let mut transform = transform_query.get_mut(*child).unwrap();
+                let offset = offset_query.get(*child).unwrap();
+
+                let delta = (marbles.1 + offset.0) - transform.translation.xy();
+                let distance = delta.length();
+
+                if distance < MOVE_TOLERANCE {
+                    continue;
+                }
+
+                moving = true;
+
+                transform.translation +=
+                    delta.extend(0.) / distance * CAPTURE_SPEED * time.delta_seconds();
+            }
+
+            if !moving {
+                let transform = transform_query.get(*container).unwrap();
+
+                for child in children.iter() {
+                    let offset = offset_query.get(*child).unwrap();
+                    let relative = transform.translation.xy() + offset.0;
+
+                    marble_events.send(MarbleEvent(MarbleEventKind::Add((
+                        marbles.0,
+                        1,
+                        Some(relative),
+                    ))));
+                }
+
+                self.finished.push(*container);
+            }
+        }
+
+        // remove finished moves
+        self.moves
+            .retain(|(_, entity)| !self.finished.contains(entity));
+    }
+
+    fn cleanup(&mut self, world: &mut World) {
+        for entity in self.finished.iter() {
+            world.entity_mut(*entity).despawn_recursive();
         }
     }
+
+    fn is_started(&self) -> bool {
+        self.started
+    }
+
+    fn is_finished(&self) -> bool {
+        self.moves.is_empty()
+    }
+}
+
+#[derive(Default)]
+struct GameOverAnimation {
+    elapsed: f32,
+    alpha: f32,
+}
+
+impl Animation for GameOverAnimation {
+    fn init(&mut self, _: &mut World) {}
+
+    fn tick(&mut self, world: &mut World) {
+        let time = world.get_resource::<Time>().unwrap().delta_seconds();
+
+        self.elapsed += time;
+        self.alpha = FADE_SPEED * 0.5 * bezier_blend(self.elapsed);
+
+        let mut system_state: SystemState<
+            Query<&mut BackgroundColor, (With<Alpha>, Without<Text>)>,
+        > = SystemState::new(world);
+
+        let mut background_color_query = system_state.get_mut(world);
+
+        for mut color in &mut background_color_query {
+            color.0 = color.0.with_a(self.alpha);
+        }
+    }
+
+    fn cleanup(&mut self, world: &mut World) {
+        let mut system_state: SystemState<Query<&mut Text, With<Alpha>>> = SystemState::new(world);
+
+        let mut text_query = system_state.get_mut(world);
+
+        for mut text in &mut text_query {
+            text.sections[0].style.color = text.sections[0].style.color.with_a(1.);
+        }
+    }
+
+    fn is_started(&self) -> bool {
+        true
+    }
+
+    fn is_finished(&self) -> bool {
+        self.alpha >= 0.5
+    }
+}
+
+#[derive(Component)]
+pub struct Stack;
+
+#[derive(Component)]
+pub struct Offset(pub Vec2);
+
+#[derive(Component)]
+pub struct Alpha;
+
+#[derive(Resource)]
+pub struct AnimationQueue(VecDeque<Box<dyn Animation>>, Timer);
+
+#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
+pub enum AnimationState {
+    #[default]
+    Idle,
+    Animating,
+}
+
+impl Default for AnimationQueue {
+    fn default() -> Self {
+        AnimationQueue(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
+    }
+}
+
+fn bezier_blend(time: f32) -> f32 {
+    time.powi(2) * (3. - 2. * time)
 }
 
 pub fn handle_move(
     mut commands: Commands,
     mut move_events: EventReader<MoveEvent>,
-    mut wait_events: EventWriter<AnimationWaitEvent>,
     marbles_query: Query<(Entity, &Marbles, &Transform)>,
     slot_query: Query<&Slot>,
-    mut animations: ResMut<MoveAnimations>,
+    mut animations: ResMut<AnimationQueue>,
 ) {
-    for MoveEvent(start_move, moves) in move_events.read() {
+    for MoveEvent(_, moves) in move_events.read() {
         let mut slots = moves.clone();
         let start = slots.pop_front().unwrap();
 
@@ -113,133 +379,155 @@ pub fn handle_move(
             .entity(container)
             .insert(Marbles(container, marbles.1, marbles.2));
 
-        animations.map.insert(
-            *start_move,
-            MoveAnimation {
-                entity: container,
-                original,
-                slot: start,
-                previous: transform.translation.xy(),
-                queue,
-            },
-        );
-
-        wait_events.send_default();
+        animations.0.push_back(Box::new(MoveAnimation {
+            started: false,
+            entity: container,
+            original,
+            slot: start,
+            previous: transform.translation.xy(),
+            moves: queue,
+        }));
     }
 }
 
-pub fn animate_move(
+fn handle_capture(
     mut commands: Commands,
-    mut wait_events: EventWriter<AnimationWaitEvent>,
-    mut end_events: EventWriter<AnimationEndEvent>,
-    mut marble_events: EventWriter<MarbleEvent>,
-    mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
-    mut transform_query: Query<&mut Transform>,
-    marbles_query: Query<&Marbles>,
-    mut children_query: Query<&Children>,
-    time: Res<Time>,
-    mut animations: ResMut<MoveAnimations>,
+    mut capture_events: EventReader<CaptureEvent>,
+    marbles_query: Query<(Entity, &Marbles)>,
+    mut animations: ResMut<AnimationQueue>,
 ) {
-    if animations.map.is_empty() {
-        return;
-    }
+    for event in capture_events.read() {
+        let (target, _) = marbles_query
+            .iter()
+            .find(|(_, m)| m.0 == event.store)
+            .unwrap();
 
-    wait_events.send_default();
+        let mut moves: Vec<(Entity, Entity)> = vec![];
 
-    if !animations.delay_timer.finished() {
-        animations.delay_timer.tick(time.delta());
-        return;
-    }
+        for slot in event.slots.iter() {
+            if let Some((entity, marbles)) = marbles_query.iter().find(|(_, m)| m.0 == *slot) {
+                let container = commands
+                    .spawn((SpatialBundle {
+                        transform: Transform::from_translation(marbles.1.extend(100.)),
+                        ..default()
+                    },))
+                    .id();
 
-    let (move_start, mut animator) = animations.map.clone().into_iter().next().unwrap();
-    let mut transform = transform_query.get_mut(animator.entity).unwrap();
+                commands
+                    .entity(container)
+                    .insert((Marbles(container, marbles.1, marbles.2),));
 
-    // check if there are no more moves to process
-    if animator.queue.is_empty() {
-        animations.map.remove(&move_start);
-
-        commands.entity(animator.entity).despawn_recursive();
-
-        // turn off the outline
-        marble_outline_events.send(MarbleOutlineEvent(animator.slot, Visibility::Hidden));
-
-        if let Some((_, next)) = animations.map.iter().next() {
-            // there is another move to animate, enable its outline
-            marble_outline_events.send(MarbleOutlineEvent(next.slot, Visibility::Visible));
-        } else {
-            // there are no more moves to animate, send the end event
-            end_events.send_default();
-        }
-
-        animations.delay_timer.reset();
-
-        return;
-    }
-
-    if !children_query.get(animator.entity).is_ok() {
-        if let Ok(children) = children_query.get_mut(animator.original) {
-            for child in children {
-                // reassign all marbles to the stack
-                commands.entity(*child).set_parent(animator.entity);
+                moves.push((entity, container));
             }
         }
+
+        animations.0.push_back(Box::new(CaptureAnimation {
+            started: false,
+            target,
+            moves,
+            finished: vec![],
+        }));
     }
+}
 
-    let (slot, target, offset) = {
-        let (entity, offset) = *animator.queue.get(0).unwrap();
-        let marbles = marbles_query.get(entity).unwrap();
+pub fn handle_game_over(
+    mut commands: Commands,
+    mut game_over_events: EventReader<GameOverEvent>,
+    mut animations: ResMut<AnimationQueue>,
+    ui_assets: Res<UiAssets>,
+) {
+    for event in game_over_events.read() {
+        let screen = helpers::get_screen(&mut commands);
 
-        (marbles.0, marbles.1 + offset, offset)
-    };
-
-    let distance = (target - transform.translation.xy()).length();
-
-    if distance < MOVE_TOLERANCE {
-        animator.queue.pop_front();
-        animator.previous = target;
-
-        let marble_transform = {
-            let children = children_query.get(animator.entity).unwrap();
-            // the `Del` event will always take the first child
-            transform_query.get(children[0]).unwrap().clone()
+        let value = {
+            if let Some(winner) = &event.0 {
+                format!("{} wins!", winner.to_string())
+            } else {
+                "Draw!".to_string()
+            }
         };
 
-        let location = marble_transform.translation.xy() + offset;
+        let container = commands
+            .spawn((
+                NodeBundle {
+                    style: Style {
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        width: Val::Percent(100.),
+                        flex_grow: 1.,
+                        ..default()
+                    },
+                    background_color: Color::rgba(0.0, 0.0, 0.0, 0.0).into(),
+                    ..default()
+                },
+                Alpha,
+            ))
+            .id();
 
-        marble_events.send_batch(vec![
-            MarbleEvent(MarbleEventKind::Del((animator.entity, 1))),
-            MarbleEvent(MarbleEventKind::Add((slot, 1, Some(location)))),
-        ]);
+        let text = commands
+            .spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        value,
+                        TextStyle {
+                            font: ui_assets.font.clone(),
+                            font_size: 40.0,
+                            color: Color::WHITE.with_a(0.),
+                        },
+                    ),
+                    ..default()
+                },
+                Alpha,
+            ))
+            .id();
 
-        // be sure to update the animation map
-        animations.map.insert(move_start, animator);
+        commands.entity(container).add_child(text);
+        commands.entity(screen).add_child(container);
 
+        animations
+            .0
+            .push_back(Box::new(GameOverAnimation::default()));
+    }
+}
+
+fn update_state(mut state: ResMut<NextState<AnimationState>>, queue: Res<AnimationQueue>) {
+    if !queue.is_changed() {
         return;
     }
 
-    let difference = target - transform.translation.xy();
-
-    transform.translation += difference.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
-
-    let total_distance = (target - animator.previous).length();
-    let travelled = total_distance - difference.length();
-
-    // elapsed can be negative if the stack overshoots the target, so clamp it to 0.
-    // note: since elapsed depends on the transform, we don't need to worry about delta time
-    let elapsed = f32::max(travelled / total_distance, 0.);
-    let curve = bezier_blend(elapsed);
-
-    let scale = if elapsed > 0.3 {
-        // remove from stack scale based on curve
-        (1. + MOVE_SCALE) - MOVE_SCALE * curve
+    if queue.0.is_empty() {
+        state.set(AnimationState::Idle);
     } else {
-        // add to stack scale based on curve
-        1. + (MOVE_SCALE / 0.3) * curve
-    };
-
-    transform.scale = Vec3::splat(scale);
+        state.set(AnimationState::Animating);
+    }
 }
 
-fn bezier_blend(time: f32) -> f32 {
-    time.powi(2) * (3. - 2. * time)
+fn animation_tick(world: &mut World) {
+    world.resource_scope(|world, mut queue: Mut<AnimationQueue>| {
+        if !queue
+            .1
+            .tick(world.get_resource::<Time>().unwrap().delta())
+            .finished()
+        {
+            return;
+        }
+
+        let Some(mut animation) = queue.0.pop_front() else {
+            return;
+        };
+
+        if animation.is_started() {
+            animation.tick(world);
+        } else {
+            animation.init(world);
+        }
+
+        if animation.is_finished() {
+            animation.cleanup(world);
+            queue.1.reset();
+        } else {
+            queue.0.push_front(animation);
+        }
+    });
 }

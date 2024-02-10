@@ -34,6 +34,9 @@ pub struct MarbleEvent(pub MarbleEventKind);
 pub struct MarbleOutlineEvent(pub Entity, pub Visibility);
 
 #[derive(Component)]
+pub struct Marble;
+
+#[derive(Component)]
 pub struct Marbles(pub Entity, pub Vec2, pub Vec2);
 
 #[derive(Component)]
@@ -82,9 +85,10 @@ pub fn handle_marble_events(
                     .extend(0.);
 
                     let wrapper = commands
-                        .spawn(SpatialBundle::from_transform(Transform::from_translation(
-                            offset,
-                        )))
+                        .spawn((
+                            SpatialBundle::from_transform(Transform::from_translation(offset)),
+                            Marble,
+                        ))
                         .id();
 
                     let sprite = commands

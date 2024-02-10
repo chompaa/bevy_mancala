@@ -1,5 +1,5 @@
 use super::{
-    animation::AnimationEndEvent,
+    animation::AnimationState,
     board::{BOARD_HEIGHT, BOARD_WIDTH},
     helpers,
 };
@@ -82,11 +82,11 @@ pub fn draw_labels(
 }
 
 pub fn update_labels(
-    mut animation_end_events: EventReader<AnimationEndEvent>,
     mut text_query: Query<(&mut Text, &PlayerLabel)>,
     current_player: Res<CurrentPlayer>,
+    animation_state: Res<State<AnimationState>>,
 ) {
-    if animation_end_events.read().count() == 0 {
+    if !animation_state.is_changed() || *animation_state.get() == AnimationState::Animating {
         return;
     }
 

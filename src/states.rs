@@ -11,4 +11,5 @@ pub enum AppState {
 pub enum GameMode {
     #[default]
     Avalanche,
+    Capture,
 }
