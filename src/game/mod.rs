@@ -2,6 +2,7 @@ use crate::states::{AppState, GameMode};
 use crate::ui::ReloadUiEvent;
 use bevy::prelude::*;
 use board::SlotPressEvent;
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::ops::Range;
 
@@ -48,29 +49,28 @@ pub enum Player {
 }
 
 impl Player {
-    pub fn flip(&self) -> Self {
+    pub const fn flip(self) -> Self {
         match self {
-            Player::Player1 => Player::Player2,
-            Player::Player2 => Player::Player1,
+            Self::Player1 => Self::Player2,
+            Self::Player2 => Self::Player1,
         }
     }
 }
 
 impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Player::Player1, Player::Player1) => true,
-            (Player::Player2, Player::Player2) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (Self::Player1, Self::Player1) | (Self::Player2, Self::Player2)
+        )
     }
 }
 
 impl ToString for Player {
     fn to_string(&self) -> String {
         match self {
-            Player::Player1 => "Player 1".to_string(),
-            Player::Player2 => "Player 2".to_string(),
+            Self::Player1 => "Player 1".to_string(),
+            Self::Player2 => "Player 2".to_string(),
         }
     }
 }
@@ -93,14 +93,8 @@ pub struct Slot {
     pub count: u32,
 }
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Default, Debug)]
 pub struct CurrentPlayer(pub Player);
-
-impl Default for CurrentPlayer {
-    fn default() -> Self {
-        Self(Player::default())
-    }
-}
 
 impl CurrentPlayer {
     pub fn flip(&mut self) {
@@ -108,7 +102,7 @@ impl CurrentPlayer {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct Board {
     pub slots: Vec<Entity>,
 }
@@ -120,26 +114,26 @@ impl Board {
     pub const ROWS: usize = 2;
     pub const COLS: usize = 6;
 
-    pub fn is_store(index: usize) -> bool {
-        index == Board::STORE_1 || index == Board::STORE_2
+    pub const fn is_store(index: usize) -> bool {
+        index == Self::STORE_1 || index == Self::STORE_2
     }
 
-    pub fn get_store(player: Player) -> usize {
+    pub const fn get_store(player: Player) -> usize {
         match player {
-            Player::Player1 => Board::STORE_1,
-            Player::Player2 => Board::STORE_2,
+            Player::Player1 => Self::STORE_1,
+            Player::Player2 => Self::STORE_2,
         }
     }
 
-    pub fn get_slots(player: Player) -> Range<usize> {
+    pub const fn get_slots(player: Player) -> Range<usize> {
         match player {
-            Player::Player1 => 0..Board::STORE_1,
-            Player::Player2 => Board::STORE_1 + 1..Board::STORE_2,
+            Player::Player1 => 0..Self::STORE_1,
+            Player::Player2 => Self::STORE_1 + 1..Self::STORE_2,
         }
     }
 
-    pub fn owner(index: usize) -> Player {
-        if index <= (Board::LENGTH - 1) / 2 {
+    pub const fn owner(index: usize) -> Player {
+        if index <= (Self::LENGTH - 1) / 2 {
             Player::Player1
         } else {
             Player::Player2
@@ -147,17 +141,11 @@ impl Board {
     }
 
     pub fn slot_order() -> Vec<usize> {
-        let mid = (Board::LENGTH - 2) / 2;
+        let mid = (Self::LENGTH - 2) / 2;
 
-        (0..Board::LENGTH)
+        (0..Self::LENGTH)
             .map(|s| if s > mid { s } else { mid - s })
             .collect()
-    }
-}
-
-impl Default for Board {
-    fn default() -> Self {
-        Self { slots: vec![] }
     }
 }
 
@@ -180,7 +168,7 @@ fn setup_slots(
     });
 
     for index in 0..Board::LENGTH {
-        let mut slot = Slot {
+        let slot = Slot {
             index,
             count: if Board::is_store(index) {
                 0
@@ -190,7 +178,7 @@ fn setup_slots(
         };
 
         let entity = commands.spawn(slot).id();
-        board.slots.push(entity)
+        board.slots.push(entity);
     }
 
     reload_ui_event.send_default();
@@ -262,7 +250,7 @@ fn handle_move(
                     counts[index] = 0;
                     counts[opposite_index] = 0;
 
-                    let store = Board::get_store(current_player.0.clone());
+                    let store = Board::get_store(current_player.0);
 
                     counts[store] += 2;
 
@@ -328,18 +316,16 @@ fn check_game_over(
 
     if *game_mode.get() == GameMode::Capture {
         if !empty.0 {
-            scores.0 += capture_side(capture_events, slot_query, &Player::Player1, slots)
+            scores.0 += capture_side(capture_events, slot_query, Player::Player1, slots);
         } else if !empty.1 {
-            scores.1 += capture_side(capture_events, slot_query, &Player::Player2, slots)
+            scores.1 += capture_side(capture_events, slot_query, Player::Player2, slots);
         }
     }
 
-    let winner: Option<Player> = if scores.0 > scores.1 {
-        Some(Player::Player1)
-    } else if scores.1 > scores.0 {
-        Some(Player::Player2)
-    } else {
-        None
+    let winner: Option<Player> = match scores.0.cmp(&scores.1) {
+        Ordering::Greater => Some(Player::Player1),
+        Ordering::Less => Some(Player::Player2),
+        Ordering::Equal => None,
     };
 
     game_over_events.send(GameOverEvent(winner));
@@ -348,11 +334,11 @@ fn check_game_over(
 fn capture_side(
     mut capture_events: EventWriter<CaptureEvent>,
     slot_query: Query<&Slot>,
-    player: &Player,
-    slots: &Vec<Entity>,
+    player: Player,
+    slots: &[Entity],
 ) -> u32 {
-    let slot_slice = Board::get_slots(*player);
-    let store_index = Board::get_store(*player);
+    let slot_slice = Board::get_slots(player);
+    let store_index = Board::get_store(player);
 
     capture_events.send(CaptureEvent {
         slots: slots[slot_slice.clone()].to_vec(),

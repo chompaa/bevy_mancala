@@ -77,12 +77,13 @@ pub fn handle_marble_events(
                     .unwrap();
 
                 for _ in 0..*count {
-                    let offset = match offset {
-                        // don't allow the marbles to be placed "outside" the container
-                        Some(offset) => offset.clamp_length_max(marbles.2.y),
-                        None => helpers::random_point_in_circle(marbles.2),
-                    }
-                    .extend(0.);
+                    let offset = offset
+                        .as_ref()
+                        .map_or_else(
+                            || helpers::random_point_in_circle(marbles.2),
+                            |offset| offset.clamp_length_max(marbles.2.y),
+                        )
+                        .extend(0.);
 
                     let wrapper = commands
                         .spawn((
@@ -129,14 +130,11 @@ pub fn handle_marble_events(
                 }
             }
             MarbleEventKind::Del((entity, count)) => {
-                let (container, _) = match marbles_query
+                let Some((container, _)) = marbles_query
                     .iter()
                     .find(|(_, marbles)| marbles.0 == *entity)
-                {
-                    Some((container, marbles)) => (container, marbles),
-                    None => {
-                        return;
-                    }
+                else {
+                    return;
                 };
 
                 if let Ok(children) = children_query.get_mut(container) {
@@ -154,7 +152,7 @@ pub fn handle_marble_outline(
     mut marble_outline_events: EventReader<MarbleOutlineEvent>,
 ) {
     for MarbleOutlineEvent(slot, visibility) in marble_outline_events.read() {
-        for (outline, mut outline_visibility) in outline_query.iter_mut() {
+        for (outline, mut outline_visibility) in &mut outline_query {
             if *slot == outline.0 {
                 *outline_visibility = *visibility;
             }

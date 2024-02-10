@@ -118,7 +118,6 @@ fn start(mut commands: Commands, ui_assets: Res<UiAssets>) {
                             font: ui_assets.font.clone(),
                             font_size: 40.0,
                             color: Color::WHITE,
-                            ..default()
                         },
                     ),
                     ..default()
@@ -209,7 +208,6 @@ fn mode(mut commands: Commands, ui_materials: Res<UiAssets>, query: Query<Entity
                             font: ui_materials.font.clone(),
                             font_size: 40.0,
                             color: Color::WHITE,
-                            ..default()
                         },
                     ),
                     ..default()

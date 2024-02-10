@@ -50,10 +50,9 @@ pub struct MoveAnimation {
 
 impl Animation for MoveAnimation {
     fn init(&mut self, world: &mut World) {
-        let children: Vec<Entity> = match world.get::<Children>(self.original) {
-            Some(entities) => entities.iter().copied().collect(),
-            _ => Vec::new(),
-        };
+        let children: Vec<Entity> = world
+            .get::<Children>(self.original)
+            .map_or_else(Vec::new, |entities| entities.iter().copied().collect());
 
         world.entity_mut(self.entity).push_children(&children);
         world.send_event(MarbleOutlineEvent(self.slot, Visibility::Visible));
@@ -76,7 +75,7 @@ impl Animation for MoveAnimation {
         let mut transform = transform_query.get_mut(self.entity).unwrap();
 
         let (slot, target, offset) = {
-            let (entity, offset) = *self.moves.get(0).unwrap();
+            let (entity, offset) = *self.moves.front().unwrap();
             let marbles = marbles_query.get(entity).unwrap();
 
             (marbles.0, marbles.1 + offset, offset)
@@ -149,17 +148,16 @@ struct CaptureAnimation {
 
 impl Animation for CaptureAnimation {
     fn init(&mut self, world: &mut World) {
-        for (original, container) in self.moves.iter() {
-            let mut children: Vec<Entity> = match world.get::<Children>(*original) {
-                Some(entities) => entities.iter().copied().collect(),
-                _ => Vec::new(),
-            };
+        for (original, container) in &mut self.moves {
+            let mut children: Vec<Entity> = world
+                .get::<Children>(*original)
+                .map_or_else(Vec::new, |entities| entities.iter().copied().collect());
 
             let translation: Vec2 = world.get::<Transform>(*container).unwrap().translation.xy();
 
             let mut rng = rand::thread_rng();
 
-            for child in children.iter_mut() {
+            for child in &mut children {
                 let offset = (
                     rng.gen_range(-MOVE_SLOT_OFFSET..=MOVE_SLOT_OFFSET),
                     rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET),
@@ -194,12 +192,12 @@ impl Animation for CaptureAnimation {
             time,
         ) = system_state.get_mut(world);
 
-        for (_, container) in self.moves.iter_mut() {
+        for (_, container) in &mut self.moves {
             let children = children_query.get(*container).unwrap();
             let marbles = marbles_query.get(self.target).unwrap();
             let mut moving = false;
 
-            for child in children.iter() {
+            for child in children {
                 let mut transform = transform_query.get_mut(*child).unwrap();
                 let offset = offset_query.get(*child).unwrap();
 
@@ -219,7 +217,7 @@ impl Animation for CaptureAnimation {
             if !moving {
                 let transform = transform_query.get(*container).unwrap();
 
-                for child in children.iter() {
+                for child in children {
                     let offset = offset_query.get(*child).unwrap();
                     let relative = transform.translation.xy() + offset.0;
 
@@ -240,7 +238,7 @@ impl Animation for CaptureAnimation {
     }
 
     fn cleanup(&mut self, world: &mut World) {
-        for entity in self.finished.iter() {
+        for entity in &self.finished {
             world.entity_mut(*entity).despawn_recursive();
         }
     }
@@ -320,12 +318,12 @@ pub enum AnimationState {
 
 impl Default for AnimationQueue {
     fn default() -> Self {
-        AnimationQueue(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
+        Self(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
     }
 }
 
 fn bezier_blend(time: f32) -> f32 {
-    time.powi(2) * (3. - 2. * time)
+    time.powi(2) * 2.0f32.mul_add(-time, 3.)
 }
 
 pub fn handle_move(
@@ -346,16 +344,14 @@ pub fn handle_move(
         for slot in slots {
             if let Some((entity, _, _)) = marbles_query.iter().find(|(_, m, _)| m.0 == slot) {
                 if let Ok(component) = slot_query.get(slot) {
-                    let offset;
-
-                    if Board::is_store(component.index) {
-                        offset = rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET);
+                    let offset = if Board::is_store(component.index) {
+                        rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET)
                     } else {
-                        offset = match component.index % 2 {
+                        match component.index % 2 {
                             0 => MOVE_SLOT_OFFSET,
                             _ => -MOVE_SLOT_OFFSET,
-                        };
-                    }
+                        }
+                    };
 
                     queue.push_back((entity, Vec2::new(0., offset)));
                 }
@@ -404,7 +400,7 @@ fn handle_capture(
 
         let mut moves: Vec<(Entity, Entity)> = vec![];
 
-        for slot in event.slots.iter() {
+        for slot in &event.slots {
             if let Some((entity, marbles)) = marbles_query.iter().find(|(_, m)| m.0 == *slot) {
                 let container = commands
                     .spawn((SpatialBundle {
@@ -439,13 +435,10 @@ pub fn handle_game_over(
     for event in game_over_events.read() {
         let screen = helpers::get_screen(&mut commands);
 
-        let value = {
-            if let Some(winner) = &event.0 {
-                format!("{} wins!", winner.to_string())
-            } else {
-                "Draw!".to_string()
-            }
-        };
+        let value = event.0.as_ref().map_or_else(
+            || "Draw!".to_string(),
+            |player| format!("{} wins!", player.to_string()),
+        );
 
         let container = commands
             .spawn((
@@ -485,9 +478,7 @@ pub fn handle_game_over(
         commands.entity(container).add_child(text);
         commands.entity(screen).add_child(container);
 
-        animations
-            .0
-            .push_back(Box::new(GameOverAnimation::default()));
+        animations.0.push_back(Box::<GameOverAnimation>::default());
     }
 }
 

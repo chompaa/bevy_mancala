@@ -156,7 +156,7 @@ pub fn handle_action(
                 slot_press_events.send(SlotPressEvent(slot_ui.0));
             }
             Interaction::Hovered => {}
-            _ => {
+            Interaction::None => {
                 slot_hover_events.send(SlotHoverEvent(slot_ui.0, false));
             }
         }
@@ -165,7 +165,6 @@ pub fn handle_action(
     // enter events
     for (interaction, slot_ui) in &mut interaction_query {
         match *interaction {
-            Interaction::Pressed => {}
             Interaction::Hovered => {
                 slot_hover_events.send(SlotHoverEvent(slot_ui.0, true));
             }

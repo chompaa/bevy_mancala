@@ -60,7 +60,6 @@ pub fn get_text(commands: &mut Commands, assets: &UiAssets, value: &str) -> Enti
                     font: assets.font.clone(),
                     font_size: 40.0,
                     color: Color::WHITE,
-                    ..default()
                 },
             ),
             ..default()
@@ -96,7 +95,6 @@ pub fn get_label<T: Component>(
                             font: assets.font.clone(),
                             font_size: 40.0,
                             color: Color::WHITE,
-                            ..default()
                         },
                     ),
                     ..default()

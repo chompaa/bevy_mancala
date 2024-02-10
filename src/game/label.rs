@@ -126,11 +126,7 @@ pub fn update_labels(
     for (children, marbles) in &marbles_query {
         for (mut text, label) in &mut label_query {
             if label.0 == marbles.0 {
-                let count = match children {
-                    Some(children) => children.len(),
-                    None => 0,
-                };
-
+                let count = children.map_or(0, |children| children.len());
                 text.sections[0].value = count.to_string();
             }
         }
