@@ -26,4 +26,4 @@ cargo run
 - [ ] Profiles.
 - [ ] Sound.
 - [x] Avalanche mode.
-- [ ] Capture mode.
+- [x] Capture mode.
