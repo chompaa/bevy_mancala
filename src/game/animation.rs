@@ -1,10 +1,9 @@
-use crate::ui::UiAssets;
-
 use super::{
     helpers,
     marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles},
     Board, CaptureEvent, GameOverEvent, MoveEvent, Slot,
 };
+use crate::ui::UiAssets;
 use bevy::{ecs::system::SystemState, prelude::*};
 use rand::Rng;
 use std::collections::VecDeque;
@@ -16,6 +15,8 @@ pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
 
 pub const CAPTURE_SPEED: f32 = 225.;
+pub const CAPTURE_OFFSET_X: f32 = 4.5;
+pub const CAPTURE_OFFSET_Y: f32 = 25.;
 
 pub const FADE_SPEED: f32 = 5.;
 
@@ -32,10 +33,12 @@ impl Plugin for AnimationPlugin {
     }
 }
 pub trait Animation: Send + Sync {
-    fn init(&mut self, world: &mut World);
+    fn init(&mut self, world: &mut World) {}
     fn tick(&mut self, world: &mut World);
     fn cleanup(&mut self, world: &mut World);
-    fn is_started(&self) -> bool;
+    fn is_started(&self) -> bool {
+        true
+    }
     fn is_finished(&self) -> bool;
 }
 
@@ -159,8 +162,8 @@ impl Animation for CaptureAnimation {
 
             for child in &mut children {
                 let offset = (
-                    rng.gen_range(-MOVE_SLOT_OFFSET..=MOVE_SLOT_OFFSET),
-                    rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET),
+                    rng.gen_range(-CAPTURE_OFFSET_X..=CAPTURE_OFFSET_Y),
+                    rng.gen_range(-CAPTURE_OFFSET_Y..=CAPTURE_OFFSET_Y),
                 );
                 world
                     .entity_mut(*child)
@@ -259,8 +262,6 @@ struct GameOverAnimation {
 }
 
 impl Animation for GameOverAnimation {
-    fn init(&mut self, _: &mut World) {}
-
     fn tick(&mut self, world: &mut World) {
         let time = world.get_resource::<Time>().unwrap().delta_seconds();
 
@@ -286,10 +287,6 @@ impl Animation for GameOverAnimation {
         for mut text in &mut text_query {
             text.sections[0].style.color = text.sections[0].style.color.with_a(1.);
         }
-    }
-
-    fn is_started(&self) -> bool {
-        true
     }
 
     fn is_finished(&self) -> bool {
