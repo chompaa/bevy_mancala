@@ -162,7 +162,7 @@ impl Animation for CaptureAnimation {
 
             for child in &mut children {
                 let offset = (
-                    rng.gen_range(-CAPTURE_OFFSET_X..=CAPTURE_OFFSET_Y),
+                    rng.gen_range(-CAPTURE_OFFSET_X..=CAPTURE_OFFSET_X),
                     rng.gen_range(-CAPTURE_OFFSET_Y..=CAPTURE_OFFSET_Y),
                 );
                 world
