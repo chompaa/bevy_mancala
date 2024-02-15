@@ -15,7 +15,7 @@ pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
 
 pub const CAPTURE_SPEED: f32 = 225.;
-pub const CAPTURE_OFFSET_X: f32 = 4;
+pub const CAPTURE_OFFSET_X: f32 = 4.;
 pub const CAPTURE_OFFSET_Y: f32 = 25.;
 
 pub const FADE_SPEED: f32 = 5.;
