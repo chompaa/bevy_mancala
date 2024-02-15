@@ -9,7 +9,6 @@ use rand::Rng;
 use std::collections::VecDeque;
 
 pub const MOVE_SPEED: f32 = 175.;
-pub const MOVE_TOLERANCE: f32 = 5.;
 pub const MOVE_SLOT_OFFSET: f32 = 4.;
 pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
@@ -32,8 +31,9 @@ impl Plugin for AnimationPlugin {
             .add_systems(FixedUpdate, animation_tick);
     }
 }
+
 pub trait Animation: Send + Sync {
-    fn init(&mut self, world: &mut World) {}
+    fn init(&mut self, _: &mut World) {}
     fn tick(&mut self, world: &mut World);
     fn cleanup(&mut self, world: &mut World);
     fn is_started(&self) -> bool {
@@ -84,10 +84,7 @@ impl Animation for MoveAnimation {
             (marbles.0, marbles.1 + offset, offset)
         };
 
-        let delta = target - transform.translation.xy();
-        let distance = delta.length();
-
-        if distance < MOVE_TOLERANCE {
+        if transform.translation.xy() == target {
             self.moves.pop_front();
             self.previous = target;
 
@@ -107,8 +104,11 @@ impl Animation for MoveAnimation {
             return;
         }
 
-        transform.translation += delta.extend(0.) / distance * MOVE_SPEED * time.delta_seconds();
+        transform
+            .translation
+            .move_towards(target, MOVE_SPEED * time.delta_seconds());
 
+        let delta = target - transform.translation.xy();
         let total_distance = (target - self.previous).length();
         let travelled = total_distance - delta.length();
 
@@ -204,17 +204,17 @@ impl Animation for CaptureAnimation {
                 let mut transform = transform_query.get_mut(*child).unwrap();
                 let offset = offset_query.get(*child).unwrap();
 
-                let delta = (marbles.1 + offset.0) - transform.translation.xy();
-                let distance = delta.length();
+                let target = marbles.1 + offset.0;
 
-                if distance < MOVE_TOLERANCE {
+                if transform.translation.xy() == target {
                     continue;
                 }
 
                 moving = true;
 
-                transform.translation +=
-                    delta.extend(0.) / distance * CAPTURE_SPEED * time.delta_seconds();
+                transform
+                    .translation
+                    .move_towards(target, CAPTURE_SPEED * time.delta_seconds());
             }
 
             if !moving {
@@ -306,6 +306,12 @@ pub struct Alpha;
 #[derive(Resource)]
 pub struct AnimationQueue(VecDeque<Box<dyn Animation>>, Timer);
 
+impl Default for AnimationQueue {
+    fn default() -> Self {
+        Self(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
+    }
+}
+
 #[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub enum AnimationState {
     #[default]
@@ -313,14 +319,43 @@ pub enum AnimationState {
     Animating,
 }
 
-impl Default for AnimationQueue {
-    fn default() -> Self {
-        Self(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
+fn update_state(mut state: ResMut<NextState<AnimationState>>, queue: Res<AnimationQueue>) {
+    if !queue.is_changed() {
+        return;
+    }
+
+    if queue.0.is_empty() {
+        state.set(AnimationState::Idle);
+    } else {
+        state.set(AnimationState::Animating);
     }
 }
 
-fn bezier_blend(time: f32) -> f32 {
-    time.powi(2) * 2.0f32.mul_add(-time, 3.)
+fn animation_tick(world: &mut World) {
+    world.resource_scope(|world, mut queue: Mut<AnimationQueue>| {
+        let time = world.get_resource::<Time>().unwrap();
+
+        if !queue.1.tick(time.delta()).finished() {
+            return;
+        }
+
+        let Some(mut animation) = queue.0.pop_front() else {
+            return;
+        };
+
+        if animation.is_started() {
+            animation.tick(world);
+        } else {
+            animation.init(world);
+        }
+
+        if animation.is_finished() {
+            animation.cleanup(world);
+            queue.1.reset();
+        } else {
+            queue.0.push_front(animation);
+        }
+    });
 }
 
 pub fn handle_move(
@@ -479,43 +514,28 @@ pub fn handle_game_over(
     }
 }
 
-fn update_state(mut state: ResMut<NextState<AnimationState>>, queue: Res<AnimationQueue>) {
-    if !queue.is_changed() {
-        return;
-    }
-
-    if queue.0.is_empty() {
-        state.set(AnimationState::Idle);
-    } else {
-        state.set(AnimationState::Animating);
-    }
+fn bezier_blend(time: f32) -> f32 {
+    time.powi(2) * 2.0f32.mul_add(-time, 3.)
 }
 
-fn animation_tick(world: &mut World) {
-    world.resource_scope(|world, mut queue: Mut<AnimationQueue>| {
-        if !queue
-            .1
-            .tick(world.get_resource::<Time>().unwrap().delta())
-            .finished()
-        {
-            return;
-        }
+pub trait Vec3Ext {
+    const THRESHOLD: f32 = 5.;
 
-        let Some(mut animation) = queue.0.pop_front() else {
-            return;
+    fn move_towards(&mut self, target: Vec2, max_velocity: f32);
+}
+
+impl Vec3Ext for Vec3 {
+    fn move_towards(&mut self, target: Vec2, max_velocity: f32) {
+        let desired = target - self.xy();
+        let distance = desired.length();
+
+        let velocity = if distance < Self::THRESHOLD {
+            desired
+        } else {
+            desired / distance * max_velocity
         };
 
-        if animation.is_started() {
-            animation.tick(world);
-        } else {
-            animation.init(world);
-        }
-
-        if animation.is_finished() {
-            animation.cleanup(world);
-            queue.1.reset();
-        } else {
-            queue.0.push_front(animation);
-        }
-    });
+        self.x += velocity.x;
+        self.y += velocity.y;
+    }
 }
