@@ -6,16 +6,18 @@ use super::{
 use crate::ui::UiAssets;
 use bevy::{ecs::system::SystemState, prelude::*};
 use rand::Rng;
-use std::collections::VecDeque;
+use std::{any::Any, collections::VecDeque};
 
 pub const MOVE_SPEED: f32 = 175.;
 pub const MOVE_SLOT_OFFSET: f32 = 4.;
 pub const MOVE_STORE_OFFSET: f32 = 25.;
 pub const MOVE_SCALE: f32 = 0.1;
+pub const MOVE_DELAY: f32 = 0.75;
 
 pub const CAPTURE_SPEED: f32 = 225.;
 pub const CAPTURE_OFFSET_X: f32 = 4.;
 pub const CAPTURE_OFFSET_Y: f32 = 25.;
+pub const CAPTURE_DELAY: f32 = 0.25;
 
 pub const FADE_SPEED: f32 = 5.;
 
@@ -40,6 +42,7 @@ pub trait Animation: Send + Sync {
         true
     }
     fn is_finished(&self) -> bool;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub struct MoveAnimation {
@@ -139,6 +142,10 @@ impl Animation for MoveAnimation {
 
     fn is_finished(&self) -> bool {
         self.moves.is_empty()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -253,6 +260,10 @@ impl Animation for CaptureAnimation {
     fn is_finished(&self) -> bool {
         self.moves.is_empty()
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[derive(Default)]
@@ -292,6 +303,10 @@ impl Animation for GameOverAnimation {
     fn is_finished(&self) -> bool {
         self.alpha >= 0.5
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[derive(Component)]
@@ -303,14 +318,8 @@ pub struct Offset(pub Vec2);
 #[derive(Component)]
 pub struct Alpha;
 
-#[derive(Resource)]
-pub struct AnimationQueue(VecDeque<Box<dyn Animation>>, Timer);
-
-impl Default for AnimationQueue {
-    fn default() -> Self {
-        Self(VecDeque::new(), Timer::from_seconds(0.75, TimerMode::Once))
-    }
-}
+#[derive(Resource, Default)]
+pub struct AnimationQueue(VecDeque<(Box<dyn Animation>, Option<Timer>)>);
 
 #[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
 pub enum AnimationState {
@@ -333,14 +342,16 @@ fn update_state(mut state: ResMut<NextState<AnimationState>>, queue: Res<Animati
 
 fn animation_tick(world: &mut World) {
     world.resource_scope(|world, mut queue: Mut<AnimationQueue>| {
-        let time = world.get_resource::<Time>().unwrap();
-
-        if !queue.1.tick(time.delta()).finished() {
+        let Some((animation, timer)) = queue.0.front_mut() else {
             return;
-        }
+        };
 
-        let Some(mut animation) = queue.0.pop_front() else {
-            return;
+        if let Some(timer) = timer {
+            let time = world.get_resource::<Time>().unwrap();
+
+            if !timer.tick(time.delta()).finished() {
+                return;
+            }
         };
 
         if animation.is_started() {
@@ -351,9 +362,7 @@ fn animation_tick(world: &mut World) {
 
         if animation.is_finished() {
             animation.cleanup(world);
-            queue.1.reset();
-        } else {
-            queue.0.push_front(animation);
+            queue.0.pop_front();
         }
     });
 }
@@ -407,14 +416,30 @@ pub fn handle_move(
             .entity(container)
             .insert(Marbles(container, marbles.1, marbles.2));
 
-        animations.0.push_back(Box::new(MoveAnimation {
+        let animation = MoveAnimation {
             started: false,
             entity: container,
             original,
             slot: start,
             previous: transform.translation.xy(),
             moves: queue,
-        }));
+        };
+
+        let mut timer = None;
+
+        if let Some(current_animation) = animations.0.front() {
+            // if there is another move, delay the transition
+            if current_animation
+                .0
+                .as_any()
+                .downcast_ref::<MoveAnimation>()
+                .is_some()
+            {
+                timer = Some(Timer::from_seconds(MOVE_DELAY, TimerMode::Once));
+            }
+        }
+
+        animations.0.push_back((Box::new(animation), timer));
     }
 }
 
@@ -449,12 +474,16 @@ fn handle_capture(
             }
         }
 
-        animations.0.push_back(Box::new(CaptureAnimation {
+        let animation = CaptureAnimation {
             started: false,
             target,
             moves,
             finished: vec![],
-        }));
+        };
+
+        let timer = Timer::from_seconds(CAPTURE_DELAY, TimerMode::Once);
+
+        animations.0.push_back((Box::new(animation), Some(timer)));
     }
 }
 
@@ -510,7 +539,9 @@ pub fn handle_game_over(
         commands.entity(container).add_child(text);
         commands.entity(screen).add_child(container);
 
-        animations.0.push_back(Box::<GameOverAnimation>::default());
+        animations
+            .0
+            .push_back((Box::<GameOverAnimation>::default(), None));
     }
 }
 
