@@ -549,13 +549,13 @@ fn bezier_blend(time: f32) -> f32 {
     time.powi(2) * 2.0f32.mul_add(-time, 3.)
 }
 
-pub trait Vec3Ext {
+pub trait MoveTowards {
     const THRESHOLD: f32 = 5.;
 
     fn move_towards(&mut self, target: Vec2, max_velocity: f32);
 }
 
-impl Vec3Ext for Vec3 {
+impl MoveTowards for Vec3 {
     fn move_towards(&mut self, target: Vec2, max_velocity: f32) {
         let desired = target - self.xy();
         let distance = desired.length();
