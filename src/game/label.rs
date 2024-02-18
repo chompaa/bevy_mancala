@@ -1,4 +1,9 @@
-use super::{animation::Stack, helpers, marble::Marbles, Board, Slot};
+use super::{
+    animation::Stack,
+    helpers,
+    marble::{MarbleStack, MarbleStackEntity},
+    Board, Slot,
+};
 use crate::ui::UiAssets;
 use bevy::prelude::*;
 
@@ -22,8 +27,8 @@ pub struct Label(Entity);
 pub fn draw_labels(
     mut commands: Commands,
     label_query: Query<Entity, With<Label>>,
-    marbles_query: Query<&Marbles>,
-    container_query: Query<Entity, Added<Marbles>>,
+    marble_stack_query: Query<&MarbleStack>,
+    container_query: Query<Entity, Added<MarbleStack>>,
     slot_query: Query<&Slot>,
     assets: Res<UiAssets>,
 ) {
@@ -56,19 +61,20 @@ pub fn draw_labels(
         })
         .id();
 
+    // TODO: allocate on the stack
     let mut store_labels: Vec<(Entity, usize)> = vec![];
     let mut slot_labels: Vec<(Entity, usize)> = vec![];
 
-    for marbles in &marbles_query {
+    for stack in &marble_stack_query {
         let label = helpers::get_label(
             &mut commands,
-            Label(marbles.0),
+            Label(stack.0),
             assets.as_ref(),
             LABEL_SIZE,
             "0",
         );
 
-        let index = slot_query.get(marbles.0).unwrap().index;
+        let index = slot_query.get(stack.0).unwrap().index;
 
         if Board::is_store(index) {
             store_labels.push((label, index));
@@ -116,19 +122,22 @@ pub fn draw_labels(
 
 pub fn update_labels(
     mut label_query: Query<(&mut Text, &Label)>,
-    changed_query: Query<Entity, (Changed<Children>, With<Marbles>)>,
-    marbles_query: Query<(Option<&Children>, &Marbles), Without<Stack>>,
+    changed_query: Query<Entity, (Changed<Children>, With<MarbleStack>)>,
+    marble_stack: MarbleStackEntity,
+    children_query: Query<Option<&Children>>,
 ) {
     if changed_query.iter().count() == 0 {
         return;
     }
 
-    for (children, marbles) in &marbles_query {
-        for (mut text, label) in &mut label_query {
-            if label.0 == marbles.0 {
-                let count = children.map_or(0, |children| children.len());
-                text.sections[0].value = count.to_string();
-            }
+    for (mut text, label) in &mut label_query {
+        if let Some((stack_container, _)) = marble_stack.get(label.0) {
+            let count = children_query
+                .get(stack_container)
+                .unwrap_or(None)
+                .map_or(0, |children| children.len());
+
+            text.sections[0].value = count.to_string();
         }
     }
 }

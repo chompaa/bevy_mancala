@@ -1,6 +1,6 @@
 use super::{
     helpers,
-    marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, Marbles},
+    marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, MarbleStack, MarbleStackEntity},
     Board, CaptureEvent, GameOverEvent, MoveEvent, Slot,
 };
 use crate::ui::UiAssets;
@@ -48,7 +48,7 @@ pub trait Animation: Send + Sync {
 pub struct MoveAnimation {
     pub started: bool,
     pub entity: Entity,
-    pub original: Entity,
+    pub stack_container: Entity,
     pub slot: Entity,
     pub previous: Vec2,
     pub moves: VecDeque<(Entity, Vec2)>,
@@ -57,7 +57,7 @@ pub struct MoveAnimation {
 impl Animation for MoveAnimation {
     fn init(&mut self, world: &mut World) {
         let children: Vec<Entity> = world
-            .get::<Children>(self.original)
+            .get::<Children>(self.stack_container)
             .map_or_else(Vec::new, |entities| entities.iter().copied().collect());
 
         world.entity_mut(self.entity).push_children(&children);
@@ -70,21 +70,21 @@ impl Animation for MoveAnimation {
         let mut system_state: SystemState<(
             EventWriter<MarbleEvent>,
             Query<&mut Transform>,
-            Query<&Marbles>,
+            Query<&MarbleStack>,
             Query<&Children>,
             Res<Time>,
         )> = SystemState::new(world);
 
-        let (mut marble_events, mut transform_query, marbles_query, children_query, time) =
+        let (mut marble_events, mut transform_query, marble_stack_query, children_query, time) =
             system_state.get_mut(world);
 
         let mut transform = transform_query.get_mut(self.entity).unwrap();
 
         let (slot, target, offset) = {
             let (entity, offset) = *self.moves.front().unwrap();
-            let marbles = marbles_query.get(entity).unwrap();
+            let stack = marble_stack_query.get(entity).unwrap();
 
-            (marbles.0, marbles.1 + offset, offset)
+            (stack.0, stack.1 + offset, offset)
         };
 
         if transform.translation.xy() == target {
@@ -158,9 +158,9 @@ struct CaptureAnimation {
 
 impl Animation for CaptureAnimation {
     fn init(&mut self, world: &mut World) {
-        for (original, container) in &mut self.moves {
+        for (stack_container, container) in &mut self.moves {
             let mut children: Vec<Entity> = world
-                .get::<Children>(*original)
+                .get::<Children>(*stack_container)
                 .map_or_else(Vec::new, |entities| entities.iter().copied().collect());
 
             let translation: Vec2 = world.get::<Transform>(*container).unwrap().translation.xy();
@@ -188,7 +188,7 @@ impl Animation for CaptureAnimation {
             EventWriter<MarbleEvent>,
             Query<&mut Transform>,
             Query<&Offset>,
-            Query<&Marbles>,
+            Query<&MarbleStack>,
             Query<&Children>,
             Res<Time>,
         )> = SystemState::new(world);
@@ -197,21 +197,21 @@ impl Animation for CaptureAnimation {
             mut marble_events,
             mut transform_query,
             offset_query,
-            marbles_query,
+            marble_stack_query,
             children_query,
             time,
         ) = system_state.get_mut(world);
 
         for (_, container) in &mut self.moves {
             let children = children_query.get(*container).unwrap();
-            let marbles = marbles_query.get(self.target).unwrap();
+            let stack = marble_stack_query.get(self.target).unwrap();
             let mut moving = false;
 
             for child in children {
                 let mut transform = transform_query.get_mut(*child).unwrap();
                 let offset = offset_query.get(*child).unwrap();
 
-                let target = marbles.1 + offset.0;
+                let target = stack.1 + offset.0;
 
                 if transform.translation.xy() == target {
                     continue;
@@ -232,7 +232,7 @@ impl Animation for CaptureAnimation {
                     let relative = transform.translation.xy() + offset.0;
 
                     marble_events.send(MarbleEvent(MarbleEventKind::Add((
-                        marbles.0,
+                        stack.0,
                         1,
                         Some(relative),
                     ))));
@@ -370,7 +370,8 @@ fn animation_tick(world: &mut World) {
 pub fn handle_move(
     mut commands: Commands,
     mut move_events: EventReader<MoveEvent>,
-    marbles_query: Query<(Entity, &Marbles, &Transform)>,
+    marble_stack: MarbleStackEntity,
+    transform_query: Query<&Transform>,
     slot_query: Query<&Slot>,
     mut animations: ResMut<AnimationQueue>,
 ) {
@@ -383,7 +384,7 @@ pub fn handle_move(
         let mut rng = rand::thread_rng();
 
         for slot in slots {
-            if let Some((entity, _, _)) = marbles_query.iter().find(|(_, m, _)| m.0 == slot) {
+            if let Some((entity, _)) = marble_stack.get(slot) {
                 if let Ok(component) = slot_query.get(slot) {
                     let offset = if Board::is_store(component.index) {
                         rng.gen_range(-MOVE_STORE_OFFSET..=MOVE_STORE_OFFSET)
@@ -399,13 +400,13 @@ pub fn handle_move(
             }
         }
 
-        let (original, marbles, transform) =
-            marbles_query.iter().find(|(_, m, _)| m.0 == start).unwrap();
+        let (stack_container, stack) = marble_stack.get(start).unwrap();
+        let transform = transform_query.get(stack_container).unwrap();
 
         let container = commands
             .spawn((
                 SpatialBundle {
-                    transform: Transform::from_translation(marbles.1.extend(100.)),
+                    transform: Transform::from_translation(stack.1.extend(100.)),
                     ..default()
                 },
                 Stack,
@@ -414,12 +415,12 @@ pub fn handle_move(
 
         commands
             .entity(container)
-            .insert(Marbles(container, marbles.1, marbles.2));
+            .insert(MarbleStack(container, stack.1, stack.2));
 
         let animation = MoveAnimation {
             started: false,
             entity: container,
-            original,
+            stack_container,
             slot: start,
             previous: transform.translation.xy(),
             moves: queue,
@@ -446,31 +447,29 @@ pub fn handle_move(
 fn handle_capture(
     mut commands: Commands,
     mut capture_events: EventReader<CaptureEvent>,
-    marbles_query: Query<(Entity, &Marbles)>,
+    marble_stack: MarbleStackEntity,
     mut animations: ResMut<AnimationQueue>,
 ) {
     for event in capture_events.read() {
-        let (target, _) = marbles_query
-            .iter()
-            .find(|(_, m)| m.0 == event.store)
-            .unwrap();
+        let (target, _) = marble_stack.get(event.store).unwrap();
 
+        // TODO: allocate on the stack instead
         let mut moves: Vec<(Entity, Entity)> = vec![];
 
         for slot in &event.slots {
-            if let Some((entity, marbles)) = marbles_query.iter().find(|(_, m)| m.0 == *slot) {
+            if let Some((stack_container, stack)) = marble_stack.get(*slot) {
                 let container = commands
                     .spawn((SpatialBundle {
-                        transform: Transform::from_translation(marbles.1.extend(100.)),
+                        transform: Transform::from_translation(stack.1.extend(100.)),
                         ..default()
                     },))
                     .id();
 
                 commands
                     .entity(container)
-                    .insert((Marbles(container, marbles.1, marbles.2),));
+                    .insert(MarbleStack(container, stack.1, stack.2));
 
-                moves.push((entity, container));
+                moves.push((stack_container, container));
             }
         }
 

@@ -3,6 +3,7 @@ use crate::game::Slot;
 use crate::ui::UiAssets;
 
 use bevy::{
+    ecs::system::SystemParam,
     prelude::*,
     render::render_resource::{AsBindGroup, ShaderRef},
     sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle},
@@ -27,6 +28,19 @@ pub enum MarbleEventKind {
     Del((Entity, u32)),
 }
 
+#[derive(SystemParam)]
+pub struct MarbleStackEntity<'w, 's> {
+    marbles_query: Query<'w, 's, (Entity, &'static MarbleStack)>,
+}
+
+impl<'w, 's> MarbleStackEntity<'w, 's> {
+    pub fn get(&self, slot_entity: Entity) -> Option<(Entity, &MarbleStack)> {
+        self.marbles_query
+            .iter()
+            .find(|(_, marbles)| marbles.0 == slot_entity)
+    }
+}
+
 #[derive(Event)]
 pub struct MarbleEvent(pub MarbleEventKind);
 
@@ -37,7 +51,7 @@ pub struct MarbleOutlineEvent(pub Entity, pub Visibility);
 pub struct Marble;
 
 #[derive(Component)]
-pub struct Marbles(pub Entity, pub Vec2, pub Vec2);
+pub struct MarbleStack(pub Entity, pub Vec2, pub Vec2);
 
 #[derive(Component)]
 pub struct MarbleOutline(Entity);
@@ -62,8 +76,8 @@ impl Material2d for OutlineMaterial {
 pub fn handle_marble_events(
     mut commands: Commands,
     mut marble_events: EventReader<MarbleEvent>,
+    marble_stack: MarbleStackEntity,
     mut children_query: Query<&Children>,
-    marbles_query: Query<(Entity, &Marbles)>,
     mut materials: ResMut<Assets<OutlineMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     ui_assets: Res<UiAssets>,
@@ -71,17 +85,14 @@ pub fn handle_marble_events(
     for MarbleEvent(event) in marble_events.read() {
         match event {
             MarbleEventKind::Add((slot, count, offset)) => {
-                let (container, marbles) = marbles_query
-                    .iter()
-                    .find(|(_, marbles)| marbles.0 == *slot)
-                    .unwrap();
+                let (stack_container, stack) = marble_stack.get(*slot).unwrap();
 
                 for _ in 0..*count {
                     let offset = offset
                         .as_ref()
                         .map_or_else(
-                            || helpers::random_point_in_circle(marbles.2),
-                            |offset| offset.clamp_length_max(marbles.2.y),
+                            || helpers::random_point_in_circle(stack.2),
+                            |offset| offset.clamp_length_max(stack.2.y),
                         )
                         .extend(0.);
 
@@ -126,18 +137,15 @@ pub fn handle_marble_events(
                         .id();
 
                     commands.entity(wrapper).push_children(&[sprite, shader]);
-                    commands.entity(container).add_child(wrapper);
+                    commands.entity(stack_container).add_child(wrapper);
                 }
             }
             MarbleEventKind::Del((entity, count)) => {
-                let Some((container, _)) = marbles_query
-                    .iter()
-                    .find(|(_, marbles)| marbles.0 == *entity)
-                else {
-                    return;
+                let Some((stack_container, _)) = marble_stack.get(*entity) else {
+                    continue;
                 };
 
-                if let Ok(children) = children_query.get_mut(container) {
+                if let Ok(children) = children_query.get_mut(stack_container) {
                     for child in children.iter().take(*count as usize) {
                         commands.entity(*child).despawn_recursive();
                     }
@@ -190,7 +198,7 @@ pub fn draw_containers(
                 transform: Transform::from_translation(transform.extend(1.)),
                 ..default()
             },
-            Marbles(slot_ui.0, transform, radius),
+            MarbleStack(slot_ui.0, transform, radius),
         ));
 
         let count = slot_query.get(slot_ui.0).unwrap().count;

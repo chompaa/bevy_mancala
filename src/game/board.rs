@@ -1,7 +1,7 @@
 use super::{
     animation::AnimationState,
     helpers,
-    marble::{MarbleOutlineEvent, Marbles},
+    marble::{MarbleOutlineEvent, MarbleStack},
 };
 use crate::game::{Board, CurrentPlayer, Slot};
 use crate::ui::ReloadUiEvent;
@@ -177,7 +177,7 @@ pub fn clear_ui(
     mut commands: Commands,
     mut reload_ui_events: EventReader<ReloadUiEvent>,
     slot_ui_query: Query<Entity, With<SlotUi>>,
-    marbles_query: Query<Entity, With<Marbles>>,
+    marbles_query: Query<Entity, With<MarbleStack>>,
 ) {
     for _ in reload_ui_events.read() {
         for entity in slot_ui_query.iter() {
