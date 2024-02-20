@@ -14,12 +14,11 @@
 </head>
 
 <body style="margin: 0 !important; padding: 0 !important;">
-    <canvas id="bevy"></canvas>
     <script type="module">
         import init from "./bevy_mancala.js"
         init()
         window.onload = function() {
-            const canvas = document.getElementById("bevy");
+            const canvas = document.querySelectorAll("canvas")[0];
             canvas.setAttribute("tabindex", "0");
             canvas.focus();
         }
