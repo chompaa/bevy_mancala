@@ -4,12 +4,41 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.13.0" }
 bevy-persistent = { version = "0.5.0", features = ["all"] }
 dirs = "5.0.1"
 rand = "0.8.5"
 serde = "1.0.196"
 ahash = "0.8.7"
+
+[dependencies.bevy]
+version = "0.13.0"
+default-features = false
+features = [
+  # These are the default features:
+  # (re-enable whichever you like)
+
+  # Bevy functionality:
+  "multi-threaded",
+  "bevy_asset",
+  "bevy_audio",
+  "bevy_scene",
+  "bevy_winit",
+  "bevy_render",
+  "bevy_core_pipeline",
+  "bevy_gizmos",
+  "bevy_sprite",
+  "bevy_text",
+  "bevy_ui",
+  "animation",
+  "default_font",
+
+  # File formats:
+  "png",
+
+  # Platform-specific:
+  "x11",
+  "webgl2",
+]
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
