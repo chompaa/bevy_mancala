@@ -250,9 +250,6 @@ fn setup_mode_screen(
         .id();
 
     for mode in GameMode::iter() {
-        let text = mode.to_string();
-        let action = ButtonAction::SelectMode(mode);
-
         let node = commands
             .spawn(NodeBundle {
                 style: Style {
@@ -278,12 +275,12 @@ fn setup_mode_screen(
                     background_color: Color::NONE.into(),
                     ..default()
                 },
-                action,
+                ButtonAction::SelectMode(mode),
             ))
             .with_children(|parent| {
                 parent.spawn(TextBundle {
                     text: Text::from_section(
-                        text,
+                        mode.to_string(),
                         TextStyle {
                             font: ui_materials.font.clone(),
                             font_size: 40.0,
@@ -629,39 +626,62 @@ fn selected_changed(
 }
 
 fn button_action(
-    interaction_query: Query<(&Interaction, &ButtonAction), (Changed<Interaction>, With<Button>)>,
+    interaction_query: Query<
+        (&Children, &Interaction, &ButtonAction),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut text_query: Query<&mut Text>,
     mut app_state: ResMut<NextState<AppState>>,
     mut menu_state: ResMut<NextState<MenuState>>,
     mut game_state: ResMut<NextState<GameMode>>,
     mut selected: ResMut<Selected>,
 ) {
-    for (interaction, action) in &interaction_query {
-        if *interaction != Interaction::Pressed {
-            continue;
-        }
-
-        match *action {
-            ButtonAction::SelectMode(mode) => {
-                match mode {
-                    GameMode::Avalanche => {
-                        game_state.set(GameMode::Avalanche);
+    for (children, interaction, action) in &interaction_query {
+        match interaction {
+            Interaction::Pressed => match *action {
+                ButtonAction::SelectMode(mode) => {
+                    match mode {
+                        GameMode::Avalanche => {
+                            game_state.set(GameMode::Avalanche);
+                        }
+                        GameMode::Capture => {
+                            game_state.set(GameMode::Capture);
+                        }
                     }
-                    GameMode::Capture => {
-                        game_state.set(GameMode::Capture);
+                    menu_state.set(MenuState::Profile);
+                }
+                ButtonAction::SwapProfiles => {
+                    selected.swap();
+                }
+                ButtonAction::SelectProfile(index) => {
+                    selected.select(index);
+                }
+                ButtonAction::Play => {
+                    app_state.set(AppState::Game);
+                }
+                _ => {}
+            },
+            Interaction::Hovered => match *action {
+                ButtonAction::SelectMode(_) | ButtonAction::Play => {
+                    let Ok(mut text) = text_query.get_mut(children[0]) else {
+                        return;
+                    };
+                    text.sections[0].value = format!("> {} <", text.sections[0].value);
+                }
+                _ => {}
+            },
+            Interaction::None => match *action {
+                ButtonAction::SelectMode(_) | ButtonAction::Play => {
+                    let Ok(mut text) = text_query.get_mut(children[0]) else {
+                        return;
+                    };
+                    let value = &text.sections[0].value;
+                    if value.starts_with(">") {
+                        text.sections[0].value = value[2..value.len() - 2].to_string();
                     }
                 }
-                menu_state.set(MenuState::Profile);
-            }
-            ButtonAction::SwapProfiles => {
-                selected.swap();
-            }
-            ButtonAction::SelectProfile(index) => {
-                selected.select(index);
-            }
-            ButtonAction::Play => {
-                app_state.set(AppState::Game);
-            }
-            _ => {}
+                _ => {}
+            },
         }
     }
 }
