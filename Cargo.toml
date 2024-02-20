@@ -9,6 +9,7 @@ bevy-persistent = { version = "0.4.3", features = ["all"] }
 dirs = "5.0.1"
 rand = "0.8.5"
 serde = "1.0.196"
+ahash = "0.8.7"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
