@@ -17,8 +17,8 @@ pub enum GameMode {
 impl ToString for GameMode {
     fn to_string(&self) -> String {
         match self {
-            Self::Avalanche => "Avalanche".to_string(),
-            Self::Capture => "Capture".to_string(),
+            Self::Avalanche => "AVALANCHE".to_string(),
+            Self::Capture => "CAPTURE".to_string(),
         }
     }
 }

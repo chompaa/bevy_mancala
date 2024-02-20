@@ -15,8 +15,6 @@ const PROFILE_SIZE: f32 = 80.;
 const PROFILE_SPACING: f32 = 20.;
 const PROFILE_CONTAINER_WIDTH: f32 = ((PROFILE_SIZE + PROFILE_SPACING) * 5.) - PROFILE_SPACING;
 
-// (30, 48, 51)
-const BACKGROUND_COLOR: Color = Color::rgb(0.11764706, 0.1882353, 0.2);
 // (53, 84, 89)
 const PRIMARY_COLOR: Color = Color::rgb(0.20784314, 0.32941177, 0.34901962);
 // (132, 213, 226)
@@ -132,7 +130,6 @@ fn setup_start_screen(mut commands: Commands, ui_assets: Res<UiAssets>) {
                     row_gap: Val::Px(20.),
                     ..default()
                 },
-                background_color: BACKGROUND_COLOR.into(),
                 ..default()
             },
             Main,
@@ -189,7 +186,7 @@ fn setup_start_screen(mut commands: Commands, ui_assets: Res<UiAssets>) {
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
-                        "Press any key",
+                        "PRESS ANY BUTTON",
                         TextStyle {
                             font: ui_assets.font.clone(),
                             font_size: 40.0,

@@ -9,7 +9,7 @@ use bevy::prelude::*;
 pub const LABEL_SIZE: f32 = 64.0;
 pub const LABEL_SLOT_GAP_X: f32 = 12.;
 pub const LABEL_SLOT_GAP_Y: f32 = 208.0;
-pub const LABEL_STORE_GAP_X: f32 = 103.0;
+pub const LABEL_STORE_GAP_X: f32 = 102.0;
 
 pub struct LabelPlugin;
 

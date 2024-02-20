@@ -77,13 +77,13 @@ pub fn get_label<T: Component>(
     commands
         .spawn(NodeBundle {
             style: Style {
+                display: Display::Flex,
                 width: Val::Px(size),
                 height: Val::Px(size),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: Color::NONE.into(),
             ..default()
         })
         .with_children(|parent| {
