@@ -1,9 +1,12 @@
 # bevy_mancala
 
-A pixel-art style 2d implementation of the classic game Mancala in [Bevy](https://bevyengine.org/).
+A retro-style 2d implementation of the classic game Mancala in [Bevy](https://bevyengine.org/).
 
 <p align="center">
-  <img src="https://github.com/chompaa/bevy_mancala/assets/26204416/6c96e348-ecfa-41d2-8cfd-9da08e62d6ff" width="75%"></img>
+  <img src="https://github.com/chompaa/bevy_mancala/assets/26204416/b704561d-e2c8-4207-8104-e967c1283e75" width="75%"></img>
+</p>
+<p align="center">
+  <img src="https://github.com/chompaa/bevy_mancala/assets/26204416/e82acd56-7945-4cc1-b12e-a9d54c77f337" width="75%"></img>
 </p>
 
 ## Demo
