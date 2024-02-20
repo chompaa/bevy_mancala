@@ -1,13 +1,12 @@
 use crate::{
     game::Player,
-    profile::{Profile, Profiles},
+    profile::Profiles,
     states::{AppState, GameMode},
     ui::UiAssets,
 };
 use bevy::{
     input::{keyboard::KeyboardInput, mouse::MouseButtonInput},
     prelude::*,
-    text::TextLayoutInfo,
 };
 use bevy_persistent::Persistent;
 
@@ -15,7 +14,6 @@ const PROFILE_LIMIT: usize = 10;
 const PROFILE_SIZE: f32 = 80.;
 const PROFILE_SPACING: f32 = 20.;
 const PROFILE_CONTAINER_WIDTH: f32 = ((PROFILE_SIZE + PROFILE_SPACING) * 5.) - PROFILE_SPACING;
-const PROFILE_CONTAINER_HEIGHT: f32 = (PROFILE_SIZE + PROFILE_SPACING) * 2.;
 
 // (30, 48, 51)
 const BACKGROUND_COLOR: Color = Color::rgb(0.11764706, 0.1882353, 0.2);
@@ -24,9 +22,6 @@ const PRIMARY_COLOR: Color = Color::rgb(0.20784314, 0.32941177, 0.34901962);
 // (132, 213, 226)
 const ACCENT_COLOR: Color = Color::rgb(0.5176471, 0.8352941, 0.8862745);
 const TEXT_COLOR: Color = Color::WHITE;
-
-const BORDER_COLOR_ACTIVE: Color = Color::VIOLET;
-const BORDER_COLOR_INACTIVE: Color = Color::BLACK;
 
 pub struct MenuPlugin;
 
@@ -137,7 +132,7 @@ fn setup_start_screen(mut commands: Commands, ui_assets: Res<UiAssets>) {
                     row_gap: Val::Px(20.),
                     ..default()
                 },
-                background_color: Color::rgb_u8(30, 48, 51).into(),
+                background_color: BACKGROUND_COLOR.into(),
                 ..default()
             },
             Main,
