@@ -17,10 +17,13 @@
     <script type="module">
         import init from "./bevy_mancala.js"
         init()
-        window.onload = function() {
-            const canvas = document.querySelectorAll("canvas")[0];
-            canvas.setAttribute("tabindex", "0");
-            canvas.focus();
+        function autoFocus() {
+            let canvas = document.getElementsByTagName("canvas");
+            if (!canvas.length) {
+                setTimeout(autoFocus, 100);
+            } else {
+                canvas[0].focus();
+            }
         }
     </script>
 </body>
