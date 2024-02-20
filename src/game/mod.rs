@@ -11,7 +11,7 @@ mod board;
 mod helpers;
 mod label;
 mod marble;
-mod player;
+mod turn_indicator;
 
 const SLOT_START_AMOUNT: u32 = 6;
 
@@ -24,7 +24,7 @@ impl Plugin for GamePlugin {
             board::BoardPlugin,
             label::LabelPlugin,
             marble::MarblePlugin,
-            player::PlayerPlugin,
+            turn_indicator::TurnIndicatorPlugin,
         ))
         .init_resource::<CurrentPlayer>()
         .init_resource::<Board>()
@@ -44,16 +44,20 @@ impl Plugin for GamePlugin {
 #[derive(Default, Debug, Clone, Copy)]
 pub enum Player {
     #[default]
-    Player1,
-    Player2,
+    One,
+    Two,
 }
 
 impl Player {
     pub const fn flip(self) -> Self {
         match self {
-            Self::Player1 => Self::Player2,
-            Self::Player2 => Self::Player1,
+            Self::One => Self::Two,
+            Self::Two => Self::One,
         }
+    }
+
+    pub fn iter() -> impl Iterator<Item = Player> {
+        [Player::One, Player::Two].iter().copied()
     }
 }
 
@@ -61,7 +65,7 @@ impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
-            (Self::Player1, Self::Player1) | (Self::Player2, Self::Player2)
+            (Self::One, Self::One) | (Self::Two, Self::Two)
         )
     }
 }
@@ -69,8 +73,8 @@ impl PartialEq for Player {
 impl ToString for Player {
     fn to_string(&self) -> String {
         match self {
-            Self::Player1 => "Player 1".to_string(),
-            Self::Player2 => "Player 2".to_string(),
+            Self::One => "PLAYER 1".to_string(),
+            Self::Two => "PLAYER 2".to_string(),
         }
     }
 }
@@ -120,23 +124,23 @@ impl Board {
 
     pub const fn get_store(player: Player) -> usize {
         match player {
-            Player::Player1 => Self::STORE_1,
-            Player::Player2 => Self::STORE_2,
+            Player::One => Self::STORE_1,
+            Player::Two => Self::STORE_2,
         }
     }
 
     pub const fn get_slots(player: Player) -> Range<usize> {
         match player {
-            Player::Player1 => 0..Self::STORE_1,
-            Player::Player2 => Self::STORE_1 + 1..Self::STORE_2,
+            Player::One => 0..Self::STORE_1,
+            Player::Two => Self::STORE_1 + 1..Self::STORE_2,
         }
     }
 
     pub const fn owner(index: usize) -> Player {
         if index <= (Self::LENGTH - 1) / 2 {
-            Player::Player1
+            Player::One
         } else {
-            Player::Player2
+            Player::Two
         }
     }
 
@@ -292,14 +296,14 @@ fn check_game_over(
     for slot in slots {
         if let Ok(slot) = slot_query.get(*slot) {
             match Board::owner(slot.index) {
-                Player::Player1 => {
+                Player::One => {
                     if Board::is_store(slot.index) {
                         scores.0 = slot.count;
                     } else if slot.count > 0 {
                         empty.0 = false;
                     }
                 }
-                Player::Player2 => {
+                Player::Two => {
                     if Board::is_store(slot.index) {
                         scores.1 = slot.count;
                     } else if slot.count > 0 {
@@ -316,15 +320,15 @@ fn check_game_over(
 
     if *game_mode.get() == GameMode::Capture {
         if !empty.0 {
-            scores.0 += capture_side(capture_events, slot_query, Player::Player1, slots);
+            scores.0 += capture_side(capture_events, slot_query, Player::One, slots);
         } else if !empty.1 {
-            scores.1 += capture_side(capture_events, slot_query, Player::Player2, slots);
+            scores.1 += capture_side(capture_events, slot_query, Player::Two, slots);
         }
     }
 
     let winner: Option<Player> = match scores.0.cmp(&scores.1) {
-        Ordering::Greater => Some(Player::Player1),
-        Ordering::Less => Some(Player::Player2),
+        Ordering::Greater => Some(Player::One),
+        Ordering::Less => Some(Player::Two),
         Ordering::Equal => None,
     };
 

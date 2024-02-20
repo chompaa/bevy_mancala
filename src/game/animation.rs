@@ -3,7 +3,7 @@ use super::{
     marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, MarbleStack, MarbleStackEntity},
     Board, CaptureEvent, GameOverEvent, MoveEvent, Slot,
 };
-use crate::ui::UiAssets;
+use crate::{states::AppState, ui::UiAssets};
 use bevy::{ecs::system::SystemState, prelude::*};
 use rand::Rng;
 use std::{any::Any, collections::VecDeque};
@@ -27,10 +27,17 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<AnimationState>()
             .init_resource::<AnimationQueue>()
-            .add_systems(Update, (handle_move, update_state))
-            .add_systems(Update, handle_capture.after(handle_move))
-            .add_systems(Update, handle_game_over.after(handle_capture))
-            .add_systems(FixedUpdate, animation_tick);
+            .add_systems(
+                Update,
+                (
+                    handle_move,
+                    update_state,
+                    handle_capture.after(handle_move),
+                    handle_game_over.after(handle_capture),
+                )
+                    .run_if(in_state(AppState::Game)),
+            )
+            .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)));
     }
 }
 

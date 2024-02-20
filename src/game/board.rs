@@ -3,8 +3,11 @@ use super::{
     helpers,
     marble::{MarbleOutlineEvent, MarbleStack},
 };
-use crate::game::{Board, CurrentPlayer, Slot};
-use crate::ui::ReloadUiEvent;
+use crate::{
+    game::{Board, CurrentPlayer, Slot},
+    states::AppState,
+    ui::ReloadUiEvent,
+};
 use bevy::prelude::*;
 
 pub const SLOT_SIZE: f32 = 64.0;
@@ -33,7 +36,8 @@ impl Plugin for BoardPlugin {
                     (clear_ui, draw_board).run_if(on_event::<ReloadUiEvent>()),
                     handle_action.run_if(in_state(AnimationState::Idle)),
                     handle_hover,
-                ),
+                )
+                    .run_if(in_state(AppState::Game)),
             );
     }
 }

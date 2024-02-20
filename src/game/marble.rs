@@ -1,7 +1,5 @@
 use super::{board::SlotUi, helpers};
-use crate::game::Slot;
-use crate::ui::UiAssets;
-
+use crate::{game::Slot, states::AppState, ui::UiAssets};
 use bevy::{
     ecs::system::SystemParam,
     prelude::*,
@@ -18,8 +16,14 @@ impl Plugin for MarblePlugin {
         app.add_plugins(Material2dPlugin::<OutlineMaterial>::default())
             .add_event::<MarbleEvent>()
             .add_event::<MarbleOutlineEvent>()
-            .add_systems(Update, (draw_containers, handle_marble_outline))
-            .add_systems(PostUpdate, handle_marble_events);
+            .add_systems(
+                Update,
+                (draw_containers, handle_marble_outline).run_if(in_state(AppState::Game)),
+            )
+            .add_systems(
+                PostUpdate,
+                handle_marble_events.run_if(in_state(AppState::Game)),
+            );
     }
 }
 

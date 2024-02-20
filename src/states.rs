@@ -7,9 +7,24 @@ pub enum AppState {
     Game,
 }
 
-#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
+#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
 pub enum GameMode {
     #[default]
     Avalanche,
     Capture,
+}
+
+impl ToString for GameMode {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Avalanche => "Avalanche".to_string(),
+            Self::Capture => "Capture".to_string(),
+        }
+    }
+}
+
+impl GameMode {
+    pub fn iter() -> impl Iterator<Item = GameMode> {
+        [GameMode::Avalanche, GameMode::Capture].iter().copied()
+    }
 }

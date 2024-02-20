@@ -1,10 +1,9 @@
 use super::{
-    animation::Stack,
     helpers,
     marble::{MarbleStack, MarbleStackEntity},
     Board, Slot,
 };
-use crate::ui::UiAssets;
+use crate::{states::AppState, ui::UiAssets};
 use bevy::prelude::*;
 
 pub const LABEL_SIZE: f32 = 64.0;
@@ -16,8 +15,8 @@ pub struct LabelPlugin;
 
 impl Plugin for LabelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(SpawnScene, draw_labels)
-            .add_systems(Last, update_labels);
+        app.add_systems(SpawnScene, draw_labels.run_if(in_state(AppState::Game)))
+            .add_systems(Last, update_labels.run_if(in_state(AppState::Game)));
     }
 }
 

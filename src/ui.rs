@@ -23,16 +23,22 @@ pub struct UiAssets {
     pub font: Handle<Font>,
     pub title: Handle<Image>,
     pub marble: Handle<Image>,
+    pub profile: Handle<Image>,
+    pub plus: Handle<Image>,
 }
 
 pub fn load_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/8bitoperator_jve.ttf");
     let title = asset_server.load("textures/title.png");
     let marble = asset_server.load("textures/marble.png");
+    let profile = asset_server.load("textures/unknown.png");
+    let plus = asset_server.load("textures/plus.png");
 
     commands.insert_resource(UiAssets {
         font,
         title,
         marble,
+        profile,
+        plus,
     });
 }
