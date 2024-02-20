@@ -119,9 +119,8 @@ pub fn handle_marble_events(
                         })
                         .id();
 
-                    let mesh = Mesh2dHandle(meshes.add(Mesh::from(shape::Quad {
-                        size: Vec2::new(MARBLE_SIZE, MARBLE_SIZE),
-                        flip: false,
+                    let mesh = Mesh2dHandle(meshes.add(Mesh::from(Rectangle {
+                        half_size: Vec2::new(MARBLE_SIZE / 2., MARBLE_SIZE / 2.),
                     })));
 
                     let shader = commands

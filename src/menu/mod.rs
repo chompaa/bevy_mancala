@@ -27,7 +27,7 @@ pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<MenuState>()
+        app.init_state::<MenuState>()
             .init_resource::<Selected>()
             .add_systems(OnEnter(AppState::Menu), setup_start_screen)
             .add_systems(OnExit(AppState::Menu), despawn::<Main>)

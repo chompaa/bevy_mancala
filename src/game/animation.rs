@@ -25,17 +25,19 @@ pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<AnimationState>()
+        app.init_state::<AnimationState>()
             .init_resource::<AnimationQueue>()
             .add_systems(
                 Update,
                 (
-                    handle_move,
                     update_state,
-                    handle_capture.after(handle_move),
+                    handle_capture,
                     handle_game_over.after(handle_capture),
                 )
                     .run_if(in_state(AppState::Game)),
+            )
+            .add_systems(PostUpdate,
+                handle_move
             )
             .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)));
     }
@@ -100,7 +102,7 @@ impl Animation for MoveAnimation {
 
             let marble_transform = {
                 let children = children_query.get(self.entity).unwrap();
-                // the `Del` event will always take the first child
+                // TODO: we can't rely on entity order from Bevy 0.13.0, so this needs to be fixed
                 transform_query.get(children[0]).unwrap()
             };
 
