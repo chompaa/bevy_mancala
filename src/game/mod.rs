@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use board::SlotPressEvent;
 use std::{cmp::Ordering, collections::VecDeque, ops::Range};
 
-mod ai;
+pub mod ai;
 mod animation;
 mod board;
 mod helpers;

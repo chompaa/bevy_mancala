@@ -1,5 +1,5 @@
 use crate::{
-    game::Player,
+    game::{ai::AI_NAME, Player},
     profile::Profiles,
     states::{AppState, GameMode},
     ui::UiAssets,
@@ -17,8 +17,12 @@ const PROFILE_CONTAINER_WIDTH: f32 = ((PROFILE_SIZE + PROFILE_SPACING) * 5.) - P
 
 // (53, 84, 89)
 const PRIMARY_COLOR: Color = Color::rgb(0.20784314, 0.32941177, 0.34901962);
+// (87, 41, 79)
+const ALT_COLOR: Color = Color::rgb(0.34117648, 0.16078432, 0.30980393);
 // (132, 213, 226)
 const ACCENT_COLOR: Color = Color::rgb(0.5176471, 0.8352941, 0.8862745);
+// (223, 106, 180)
+const ACCENT_ALT_COLOR: Color = Color::rgb(0.8745098, 0.41568628, 0.7058824);
 const TEXT_COLOR: Color = Color::WHITE;
 
 pub struct MenuPlugin;
@@ -519,10 +523,20 @@ fn spawn_profiles(
     }
 
     for (index, profile) in profiles.0.iter().take(PROFILE_LIMIT).enumerate() {
+        let is_ai = profile.name == AI_NAME;
+
         let (color, background_color) = if selected.is_selected(index) {
-            (PRIMARY_COLOR, ACCENT_COLOR.into())
+            if is_ai {
+                (ALT_COLOR, ACCENT_ALT_COLOR.into())
+            } else {
+                (PRIMARY_COLOR, ACCENT_COLOR.into())
+            }
         } else {
-            (TEXT_COLOR, PRIMARY_COLOR.into())
+            if is_ai {
+                (TEXT_COLOR, ALT_COLOR.into())
+            } else {
+                (TEXT_COLOR, PRIMARY_COLOR.into())
+            }
         };
 
         let button = commands

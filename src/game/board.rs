@@ -1,4 +1,5 @@
 use super::{
+    ai::AiPlayer,
     animation::AnimationState,
     helpers,
     marble::{MarbleOutlineEvent, MarbleStack},
@@ -124,16 +125,8 @@ pub fn draw_board(mut commands: Commands, board: Res<Board>) {
 pub fn handle_hover(
     mut slot_hover_events: EventReader<SlotHoverEvent>,
     mut marble_outline_events: EventWriter<MarbleOutlineEvent>,
-    slot_query: Query<&Slot>,
-    current_player: Res<CurrentPlayer>,
 ) {
     for event in slot_hover_events.read() {
-        let slot = slot_query.get(event.0).unwrap();
-
-        if Board::owner(slot.index) != current_player.0 {
-            continue;
-        }
-
         let visibility = if event.1 {
             Visibility::Visible
         } else {
@@ -145,34 +138,33 @@ pub fn handle_hover(
 }
 
 pub fn handle_action(
-    mut changed_interaction_query: Query<
+    mut interaction_query: Query<
         (&Interaction, &SlotUi),
         (Changed<Interaction>, With<Button>, With<SlotButton>),
     >,
-    mut interaction_query: Query<(&Interaction, &SlotUi), (With<Button>, With<SlotButton>)>,
     mut slot_press_events: EventWriter<SlotPressEvent>,
     mut slot_hover_events: EventWriter<SlotHoverEvent>,
+    slot_query: Query<&Slot>,
+    current_player: Res<CurrentPlayer>,
+    ai_player: Res<AiPlayer>,
 ) {
-    // leave events
-    for (interaction, slot_ui) in &mut changed_interaction_query {
+    for (interaction, slot_ui) in &mut interaction_query {
+        let slot = slot_query.get(slot_ui.0).unwrap();
+
+        if ai_player.0 == Some(current_player.0) || Board::owner(slot.index) != current_player.0 {
+            continue;
+        }
+
         match *interaction {
             Interaction::Pressed => {
                 slot_press_events.send(SlotPressEvent(slot_ui.0));
             }
-            Interaction::Hovered => {}
-            Interaction::None => {
-                slot_hover_events.send(SlotHoverEvent(slot_ui.0, false));
-            }
-        }
-    }
-
-    // enter events
-    for (interaction, slot_ui) in &mut interaction_query {
-        match *interaction {
             Interaction::Hovered => {
                 slot_hover_events.send(SlotHoverEvent(slot_ui.0, true));
             }
-            _ => {}
+            Interaction::None => {
+                slot_hover_events.send(SlotHoverEvent(slot_ui.0, false));
+            }
         }
     }
 }
