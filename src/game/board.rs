@@ -151,7 +151,10 @@ pub fn handle_action(
     for (interaction, slot_ui) in &mut interaction_query {
         let slot = slot_query.get(slot_ui.0).unwrap();
 
-        if ai_player.0 == Some(current_player.0) || Board::owner(slot.index) != current_player.0 {
+        if ai_player.0 == Some(current_player.0)
+            || Board::owner(slot.index) != current_player.0
+            || slot.count == 0
+        {
             continue;
         }
 

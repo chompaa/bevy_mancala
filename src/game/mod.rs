@@ -3,7 +3,7 @@ use crate::{
     states::{AppState, GameMode},
     ui::ReloadUiEvent,
 };
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemState, prelude::*};
 use board::SlotPressEvent;
 use std::{cmp::Ordering, collections::VecDeque, ops::Range};
 
@@ -90,6 +90,12 @@ impl ToString for Player {
             Self::Two => "PLAYER 2".to_string(),
         }
     }
+}
+
+enum MoveEndAction {
+    Repeat,
+    Continue,
+    End,
 }
 
 #[derive(Event)]
@@ -226,12 +232,6 @@ fn handle_move(
     mut capture_events: EventWriter<CaptureEvent>,
 ) {
     for event in slot_press_events.read() {
-        let slot = slot_query.get(event.0).unwrap();
-
-        if slot.count == 0 || Board::owner(slot.index) != current_player.0 {
-            continue;
-        }
-
         let mut counts: Vec<u32> = vec![0; Board::LENGTH];
 
         for slot in &mut slot_query.iter() {
@@ -264,46 +264,72 @@ fn handle_move(
 
             move_events.send(MoveEvent(moves));
 
-            if index == Board::get_store(current_player.0) {
-                // if we end in our own store, we get another turn
-                break;
-            }
+            let move_end_action = handle_move_end(
+                &board,
+                index,
+                *game_mode.get(),
+                current_player.0,
+                &mut counts,
+                &mut capture_events,
+            );
 
-            if *game_mode.get() == GameMode::Capture
-                && counts[index] == 1
-                && Board::owner(index) == current_player.0
-            {
-                let opposite_index = Board::LENGTH - index - 2;
-
-                if counts[opposite_index] > 0 {
-                    counts[index] = 0;
-                    counts[opposite_index] = 0;
-
-                    let store = Board::get_store(current_player.0);
-
-                    counts[store] += 2;
-
-                    capture_events.send(CaptureEvent {
-                        slots: vec![board.slots[index], board.slots[opposite_index]],
-                        store: board.slots[store],
-                    });
-
+            match move_end_action {
+                MoveEndAction::Repeat => continue,
+                MoveEndAction::Continue => break,
+                MoveEndAction::End => {
+                    current_player.flip();
                     break;
                 }
             }
-
-            if *game_mode.get() == GameMode::Avalanche && counts[index] > 1 {
-                continue;
-            }
-
-            current_player.flip();
-            break;
         }
 
         for mut slot in &mut slot_query {
             slot.count = counts[slot.index];
         }
     }
+}
+
+fn handle_move_end(
+    board: &Board,
+    index: usize,
+    game_mode: GameMode,
+    current_player: Player,
+    counts: &mut Vec<u32>,
+    capture_evw: &mut EventWriter<CaptureEvent>,
+) -> MoveEndAction {
+    if index == Board::get_store(current_player) {
+        return MoveEndAction::Continue;
+    }
+
+    match game_mode {
+        GameMode::Capture => {
+            if counts[index] == 1 && Board::owner(index) == current_player {
+                let opposite_index = Board::LENGTH - index - 2;
+
+                if counts[opposite_index] > 0 {
+                    let store = Board::get_store(current_player);
+
+                    counts[store] += counts[opposite_index] + 1;
+                    counts[opposite_index] = 0;
+                    counts[index] = 0;
+
+                    capture_evw.send(CaptureEvent {
+                        slots: vec![board.slots[index], board.slots[opposite_index]],
+                        store: board.slots[store],
+                    });
+
+                    return MoveEndAction::Continue;
+                }
+            }
+        }
+        GameMode::Avalanche => {
+            if counts[index] > 1 {
+                return MoveEndAction::Repeat;
+            }
+        }
+    }
+
+    MoveEndAction::End
 }
 
 fn check_game_over(

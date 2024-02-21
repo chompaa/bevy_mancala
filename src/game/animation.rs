@@ -28,8 +28,9 @@ impl Plugin for AnimationPlugin {
         app.init_state::<AnimationState>()
             .init_resource::<AnimationQueue>()
             .add_systems(
-                Update,
+                PostUpdate,
                 (update_state, handle_move, handle_capture.after(handle_move))
+                    .chain()
                     .run_if(in_state(AppState::Game)),
             )
             .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)))
