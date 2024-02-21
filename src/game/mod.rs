@@ -1,11 +1,13 @@
-use crate::states::{AppState, GameMode};
-use crate::ui::ReloadUiEvent;
+use self::animation::AnimationState;
+use crate::{
+    states::{AppState, GameMode},
+    ui::ReloadUiEvent,
+};
 use bevy::prelude::*;
 use board::SlotPressEvent;
-use std::cmp::Ordering;
-use std::collections::VecDeque;
-use std::ops::Range;
+use std::{cmp::Ordering, collections::VecDeque, ops::Range};
 
+mod ai;
 mod animation;
 mod board;
 mod helpers;
@@ -20,24 +22,35 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            ai::AiPlugin,
             animation::AnimationPlugin,
             board::BoardPlugin,
             label::LabelPlugin,
             marble::MarblePlugin,
             turn_indicator::TurnIndicatorPlugin,
         ))
+        .init_state::<GameState>()
         .init_resource::<CurrentPlayer>()
         .init_resource::<Board>()
         .add_event::<MoveEvent>()
         .add_event::<CaptureEvent>()
+        .add_event::<TurnEndEvent>()
         .add_event::<GameOverEvent>()
         .add_systems(OnEnter(AppState::Game), setup_slots)
+        .add_systems(Update, (handle_move).run_if(in_state(AppState::Game)))
         .add_systems(
-            Update,
-            (handle_move, check_game_over.run_if(on_event::<MoveEvent>()))
-                .run_if(in_state(AppState::Game))
-                .chain(),
-        );
+            OnEnter(AnimationState::Animating),
+            handle_animation_start
+                .run_if(in_state(GameState::Idle))
+                .run_if(in_state(AppState::Game)),
+        )
+        .add_systems(
+            OnEnter(AnimationState::Idle),
+            handle_animation_end
+                .run_if(in_state(GameState::Playing))
+                .run_if(in_state(AppState::Game)),
+        )
+        .add_systems(OnEnter(GameState::Idle), check_game_over);
     }
 }
 
@@ -80,13 +93,16 @@ impl ToString for Player {
 }
 
 #[derive(Event)]
-pub struct MoveEvent(pub u32, pub VecDeque<Entity>);
+pub struct MoveEvent(pub VecDeque<Entity>);
 
 #[derive(Event, Clone)]
 pub struct CaptureEvent {
     slots: Vec<Entity>,
     store: Entity,
 }
+
+#[derive(Event, Default)]
+pub struct TurnEndEvent;
 
 #[derive(Event)]
 pub struct GameOverEvent(pub Option<Player>);
@@ -109,6 +125,15 @@ impl CurrentPlayer {
 #[derive(Resource, Default)]
 pub struct Board {
     pub slots: Vec<Entity>,
+}
+
+#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
+pub enum GameState {
+    #[default]
+    None,
+    Idle,
+    Playing,
+    Over,
 }
 
 impl Board {
@@ -155,6 +180,7 @@ impl Board {
 
 fn setup_slots(
     mut commands: Commands,
+    mut game_state: ResMut<NextState<GameState>>,
     asset_server: Res<AssetServer>,
     mut reload_ui_event: EventWriter<ReloadUiEvent>,
     mut board: ResMut<Board>,
@@ -185,6 +211,8 @@ fn setup_slots(
         board.slots.push(entity);
     }
 
+    game_state.set(GameState::Idle);
+
     reload_ui_event.send_default();
 }
 
@@ -212,14 +240,12 @@ fn handle_move(
 
         let start = slot_query.get(event.0).unwrap();
         let mut index = start.index;
-        let mut move_count = 0;
 
         loop {
             let mut stack = counts[index];
             let mut moves: VecDeque<Entity> = VecDeque::new();
             counts[index] = 0;
 
-            let start_move = move_count;
             moves.push_back(board.slots[index]);
 
             while stack > 0 {
@@ -230,14 +256,13 @@ fn handle_move(
                     continue;
                 }
 
-                move_count += 1;
                 counts[index] += 1;
                 stack -= 1;
 
                 moves.push_back(board.slots[index]);
             }
 
-            move_events.send(MoveEvent(start_move, moves));
+            move_events.send(MoveEvent(moves));
 
             if index == Board::get_store(current_player.0) {
                 // if we end in our own store, we get another turn
@@ -282,7 +307,8 @@ fn handle_move(
 }
 
 fn check_game_over(
-    mut game_over_events: EventWriter<GameOverEvent>,
+    mut game_over_evw: EventWriter<GameOverEvent>,
+    mut game_state: ResMut<NextState<GameState>>,
     capture_events: EventWriter<CaptureEvent>,
     slot_query: Query<&Slot>,
     board: Res<Board>,
@@ -332,7 +358,8 @@ fn check_game_over(
         Ordering::Equal => None,
     };
 
-    game_over_events.send(GameOverEvent(winner));
+    game_state.set(GameState::Over);
+    game_over_evw.send(GameOverEvent(winner));
 }
 
 fn capture_side(
@@ -353,4 +380,16 @@ fn capture_side(
         let count = slot_query.get(*slot).unwrap().count;
         acc + count
     })
+}
+
+fn handle_animation_start(mut game_state: ResMut<NextState<GameState>>) {
+    game_state.set(GameState::Playing);
+}
+
+fn handle_animation_end(
+    mut game_state: ResMut<NextState<GameState>>,
+    mut turn_end_evr: EventWriter<TurnEndEvent>,
+) {
+    game_state.set(GameState::Idle);
+    turn_end_evr.send_default();
 }

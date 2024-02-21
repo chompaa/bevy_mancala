@@ -29,17 +29,11 @@ impl Plugin for AnimationPlugin {
             .init_resource::<AnimationQueue>()
             .add_systems(
                 Update,
-                (
-                    update_state,
-                    handle_capture,
-                    handle_game_over.after(handle_capture),
-                )
+                (update_state, handle_move, handle_capture.after(handle_move))
                     .run_if(in_state(AppState::Game)),
             )
-            .add_systems(PostUpdate,
-                handle_move
-            )
-            .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)));
+            .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)))
+            .add_systems(Last, handle_game_over.run_if(in_state(AppState::Game)));
     }
 }
 
@@ -310,7 +304,7 @@ impl Animation for GameOverAnimation {
     }
 
     fn is_finished(&self) -> bool {
-        self.alpha >= 0.5
+        self.alpha >= 0.7
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -384,7 +378,7 @@ pub fn handle_move(
     slot_query: Query<&Slot>,
     mut animations: ResMut<AnimationQueue>,
 ) {
-    for MoveEvent(_, moves) in move_events.read() {
+    for MoveEvent(moves) in move_events.read() {
         let mut slots = moves.clone();
         let start = slots.pop_front().unwrap();
 
@@ -497,11 +491,11 @@ fn handle_capture(
 
 pub fn handle_game_over(
     mut commands: Commands,
-    mut game_over_events: EventReader<GameOverEvent>,
     mut animations: ResMut<AnimationQueue>,
+    mut game_over_evr: EventReader<GameOverEvent>,
     ui_assets: Res<UiAssets>,
 ) {
-    for event in game_over_events.read() {
+    for event in game_over_evr.read() {
         let screen = helpers::get_screen(&mut commands);
 
         let value = event.0.as_ref().map_or_else(

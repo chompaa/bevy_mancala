@@ -84,7 +84,7 @@ struct UiSelected;
 
 #[derive(Resource)]
 pub struct Selected {
-    profiles: [usize; 2],
+    pub profiles: [usize; 2],
     last_selected: usize,
 }
 

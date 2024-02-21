@@ -7,7 +7,7 @@ pub struct ProfilePlugin;
 
 impl Plugin for ProfilePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup);
+        app.add_systems(Startup, (setup, revert.after(setup)));
     }
 }
 
@@ -39,8 +39,19 @@ fn setup(mut commands: Commands) {
                     name: "PL2".to_string(),
                     wins: 0,
                 },
+                Profile {
+                    name: "CPU".to_string(),
+                    wins: 0,
+                },
             ]))
+            .revertible(true)
             .build()
             .expect("failed to initialize profiles"),
     );
+}
+
+fn revert(mut profiles: ResMut<Persistent<Profiles>>) {
+    profiles
+        .revert_to_default()
+        .expect("failed to revert profiles to default");
 }
