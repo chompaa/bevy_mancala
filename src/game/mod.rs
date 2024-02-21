@@ -3,13 +3,14 @@ use crate::{
     states::{AppState, GameMode},
     ui::ReloadUiEvent,
 };
-use bevy::{ecs::system::SystemState, prelude::*};
+use bevy::prelude::*;
 use board::SlotPressEvent;
 use std::{cmp::Ordering, collections::VecDeque, ops::Range};
 
 pub mod ai;
 mod animation;
 mod board;
+mod game_over;
 mod helpers;
 mod label;
 mod marble;
@@ -25,6 +26,7 @@ impl Plugin for GamePlugin {
             ai::AiPlugin,
             animation::AnimationPlugin,
             board::BoardPlugin,
+            game_over::GameOverPlugin,
             label::LabelPlugin,
             marble::MarblePlugin,
             turn_indicator::TurnIndicatorPlugin,
@@ -32,10 +34,10 @@ impl Plugin for GamePlugin {
         .init_state::<GameState>()
         .init_resource::<CurrentPlayer>()
         .init_resource::<Board>()
+        .init_resource::<Winner>()
         .add_event::<MoveEvent>()
         .add_event::<CaptureEvent>()
         .add_event::<TurnEndEvent>()
-        .add_event::<GameOverEvent>()
         .add_systems(OnEnter(AppState::Game), setup_slots)
         .add_systems(Update, (handle_move).run_if(in_state(AppState::Game)))
         .add_systems(
@@ -110,9 +112,6 @@ pub struct CaptureEvent {
 #[derive(Event, Default)]
 pub struct TurnEndEvent;
 
-#[derive(Event)]
-pub struct GameOverEvent(pub Option<Player>);
-
 #[derive(Component)]
 pub struct Slot {
     pub index: usize,
@@ -131,15 +130,6 @@ impl CurrentPlayer {
 #[derive(Resource, Default)]
 pub struct Board {
     pub slots: Vec<Entity>,
-}
-
-#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
-pub enum GameState {
-    #[default]
-    None,
-    Idle,
-    Playing,
-    Over,
 }
 
 impl Board {
@@ -183,6 +173,17 @@ impl Board {
             .collect()
     }
 }
+#[derive(Resource, Default)]
+pub struct Winner(Option<Player>);
+
+#[derive(States, SystemSet, Debug, Hash, PartialEq, Eq, Clone, Default)]
+pub enum GameState {
+    #[default]
+    None,
+    Idle,
+    Playing,
+    Over,
+}
 
 fn setup_slots(
     mut commands: Commands,
@@ -204,7 +205,7 @@ fn setup_slots(
     });
 
     for index in 0..Board::LENGTH {
-        let slot = Slot {
+        let mut slot = Slot {
             index,
             count: if Board::is_store(index) {
                 0
@@ -212,6 +213,12 @@ fn setup_slots(
                 SLOT_START_AMOUNT
             },
         };
+
+        if slot.index == 4 || slot.index == 7 {
+            slot.count = 1;
+        } else {
+            slot.count = 0;
+        }
 
         let entity = commands.spawn(slot).id();
         board.slots.push(entity);
@@ -333,7 +340,7 @@ fn handle_move_end(
 }
 
 fn check_game_over(
-    mut game_over_evw: EventWriter<GameOverEvent>,
+    mut winner: ResMut<Winner>,
     mut game_state: ResMut<NextState<GameState>>,
     capture_events: EventWriter<CaptureEvent>,
     slot_query: Query<&Slot>,
@@ -378,14 +385,13 @@ fn check_game_over(
         }
     }
 
-    let winner: Option<Player> = match scores.0.cmp(&scores.1) {
+    winner.0 = match scores.0.cmp(&scores.1) {
         Ordering::Greater => Some(Player::One),
         Ordering::Less => Some(Player::Two),
         Ordering::Equal => None,
     };
 
     game_state.set(GameState::Over);
-    game_over_evw.send(GameOverEvent(winner));
 }
 
 fn capture_side(

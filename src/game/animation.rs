@@ -1,9 +1,8 @@
 use super::{
-    helpers,
     marble::{MarbleEvent, MarbleEventKind, MarbleOutlineEvent, MarbleStack, MarbleStackEntity},
-    Board, CaptureEvent, GameOverEvent, MoveEvent, Slot,
+    Board, CaptureEvent, MoveEvent, Slot,
 };
-use crate::{states::AppState, ui::UiAssets};
+use crate::states::AppState;
 use bevy::{ecs::system::SystemState, prelude::*};
 use rand::Rng;
 use std::{any::Any, collections::VecDeque};
@@ -19,8 +18,6 @@ pub const CAPTURE_OFFSET_X: f32 = 4.;
 pub const CAPTURE_OFFSET_Y: f32 = 25.;
 pub const CAPTURE_DELAY: f32 = 0.25;
 
-pub const FADE_SPEED: f32 = 5.;
-
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
@@ -33,8 +30,7 @@ impl Plugin for AnimationPlugin {
                     .chain()
                     .run_if(in_state(AppState::Game)),
             )
-            .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)))
-            .add_systems(Last, handle_game_over.run_if(in_state(AppState::Game)));
+            .add_systems(FixedUpdate, animation_tick.run_if(in_state(AppState::Game)));
     }
 }
 
@@ -270,57 +266,11 @@ impl Animation for CaptureAnimation {
     }
 }
 
-#[derive(Default)]
-struct GameOverAnimation {
-    elapsed: f32,
-    alpha: f32,
-}
-
-impl Animation for GameOverAnimation {
-    fn tick(&mut self, world: &mut World) {
-        let time = world.get_resource::<Time>().unwrap().delta_seconds();
-
-        self.elapsed += time;
-        self.alpha = FADE_SPEED * 0.5 * bezier_blend(self.elapsed);
-
-        let mut system_state: SystemState<
-            Query<&mut BackgroundColor, (With<Alpha>, Without<Text>)>,
-        > = SystemState::new(world);
-
-        let mut background_color_query = system_state.get_mut(world);
-
-        for mut color in &mut background_color_query {
-            color.0 = color.0.with_a(self.alpha);
-        }
-    }
-
-    fn cleanup(&mut self, world: &mut World) {
-        let mut system_state: SystemState<Query<&mut Text, With<Alpha>>> = SystemState::new(world);
-
-        let mut text_query = system_state.get_mut(world);
-
-        for mut text in &mut text_query {
-            text.sections[0].style.color = text.sections[0].style.color.with_a(1.);
-        }
-    }
-
-    fn is_finished(&self) -> bool {
-        self.alpha >= 0.7
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
 #[derive(Component)]
 pub struct Stack;
 
 #[derive(Component)]
 pub struct Offset(pub Vec2);
-
-#[derive(Component)]
-pub struct Alpha;
 
 #[derive(Resource, Default)]
 pub struct AnimationQueue(VecDeque<(Box<dyn Animation>, Option<Timer>)>);
@@ -490,65 +440,7 @@ fn handle_capture(
     }
 }
 
-pub fn handle_game_over(
-    mut commands: Commands,
-    mut animations: ResMut<AnimationQueue>,
-    mut game_over_evr: EventReader<GameOverEvent>,
-    ui_assets: Res<UiAssets>,
-) {
-    for event in game_over_evr.read() {
-        let screen = helpers::get_screen(&mut commands);
-
-        let value = event.0.as_ref().map_or_else(
-            || "Draw!".to_string(),
-            |player| format!("{} wins!", player.to_string()),
-        );
-
-        let container = commands
-            .spawn((
-                NodeBundle {
-                    style: Style {
-                        display: Display::Flex,
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        width: Val::Percent(100.),
-                        flex_grow: 1.,
-                        ..default()
-                    },
-                    background_color: Color::rgba(0.0, 0.0, 0.0, 0.0).into(),
-                    ..default()
-                },
-                Alpha,
-            ))
-            .id();
-
-        let text = commands
-            .spawn((
-                TextBundle {
-                    text: Text::from_section(
-                        value,
-                        TextStyle {
-                            font: ui_assets.font.clone(),
-                            font_size: 40.0,
-                            color: Color::WHITE.with_a(0.),
-                        },
-                    ),
-                    ..default()
-                },
-                Alpha,
-            ))
-            .id();
-
-        commands.entity(container).add_child(text);
-        commands.entity(screen).add_child(container);
-
-        animations
-            .0
-            .push_back((Box::<GameOverAnimation>::default(), None));
-    }
-}
-
-fn bezier_blend(time: f32) -> f32 {
+pub fn bezier_blend(time: f32) -> f32 {
     time.powi(2) * 2.0f32.mul_add(-time, 3.)
 }
 
