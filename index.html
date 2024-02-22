@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>bevy mancala</title>
+    <style>
+        html,
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100dvw;
+            height: 100dvh;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+
+<body>
+    <script type="module">
+        import init from "./bevy_mancala.js"
+        init()
+        function autoFocus() {
+            let canvas = document.getElementsByTagName("canvas");
+            if (!canvas.length) {
+                setTimeout(autoFocus, 100);
+            } else {
+                canvas[0].focus();
+            }
+        }
+        autoFocus();
+    </script>
+</body>
+
+</html>
