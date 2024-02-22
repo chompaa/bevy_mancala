@@ -114,3 +114,9 @@ pub fn random_point_in_circle(radius: Vec2) -> Vec2 {
 
     Vec2::new(rx * theta.cos(), ry * theta.sin())
 }
+
+pub fn despawn<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
+    for entity in query.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+}

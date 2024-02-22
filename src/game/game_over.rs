@@ -1,8 +1,6 @@
-use bevy::{prelude::*, transform::helper};
-
-use crate::ui::UiAssets;
-
 use super::{animation::bezier_blend, helpers, GameState, Winner};
+use crate::{states::AppState, ui::UiAssets};
+use bevy::prelude::*;
 
 pub struct GameOverPlugin;
 
@@ -14,12 +12,13 @@ impl Plugin for GameOverPlugin {
         app.init_state::<GameOverState>()
             .init_resource::<GameOverAlpha>()
             .add_systems(OnEnter(GameState::Over), setup)
-            .add_systems(OnExit(GameState::Over), despawn::<GameOverScreen>)
+            .add_systems(OnExit(GameState::Over), helpers::despawn::<GameOverScreen>)
             .add_systems(
                 Update,
-                show.run_if(in_state(GameState::Over))
-                    .run_if(in_state(GameOverState::Hidden)),
-            );
+                (fade.run_if(in_state(GameOverState::Hidden)), button_action)
+                    .run_if(in_state(GameState::Over)),
+            )
+            .add_systems(OnEnter(GameOverState::Visible), show);
     }
 }
 
@@ -30,7 +29,12 @@ struct GameOverScreen;
 struct GameOverContainer;
 
 #[derive(Component)]
-struct GameOverText;
+struct GameOverElement;
+
+#[derive(Component)]
+enum GameOverButtonAction {
+    Menu,
+}
 
 #[derive(Resource, Default)]
 struct GameOverAlpha {
@@ -58,7 +62,7 @@ fn setup(
 
     let value = winner.0.as_ref().map_or_else(
         || "Draw!".to_string(),
-        |player| format!("{} wins!", player.to_string()),
+        |&player| format!("{} WINS!", player.to_string()),
     );
 
     let container = commands
@@ -66,6 +70,8 @@ fn setup(
             NodeBundle {
                 style: Style {
                     display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(20.),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     width: Val::Percent(100.),
@@ -87,16 +93,44 @@ fn setup(
                     TextStyle {
                         font: ui_assets.font.clone(),
                         font_size: 40.0,
-                        color: Color::WHITE.with_a(0.),
+                        color: Color::WHITE,
                     },
                 ),
+                visibility: Visibility::Hidden,
                 ..default()
             },
-            GameOverText,
+            GameOverElement,
         ))
         .id();
 
-    commands.entity(container).add_child(text);
+    let button = commands
+        .spawn((
+            ButtonBundle {
+                style: Style {
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                visibility: Visibility::Hidden,
+                background_color: Color::NONE.into(),
+                ..default()
+            },
+            GameOverElement,
+            GameOverButtonAction::Menu,
+        ))
+        .with_children(|parent| {
+            parent.spawn(TextBundle::from_section(
+                "PLAY AGAIN",
+                TextStyle {
+                    font: ui_assets.font.clone(),
+                    font_size: 40.0,
+                    color: Color::WHITE,
+                },
+            ));
+        })
+        .id();
+
+    commands.entity(container).push_children(&[text, button]);
     commands.entity(screen).add_child(container);
 
     alpha.value = 0.;
@@ -105,31 +139,48 @@ fn setup(
     state.set(GameOverState::Hidden);
 }
 
-fn show(
-    mut text_query: Query<&mut Text, With<GameOverText>>,
+fn fade(
     mut background_color_query: Query<&mut BackgroundColor, With<GameOverContainer>>,
     time: Res<Time>,
     mut alpha: ResMut<GameOverAlpha>,
     mut state: ResMut<NextState<GameOverState>>,
 ) {
     if alpha.value >= ALPHA_END {
-        let mut text = text_query.single_mut();
-
-        text.sections[0].style.color = text.sections[0].style.color.with_a(1.);
-
         state.set(GameOverState::Visible);
-    } else {
-        alpha.elapsed += time.delta_seconds();
-        alpha.value = ALPHA_SPEED * 0.5 * bezier_blend(alpha.elapsed);
+        return;
+    }
 
-        let mut color = background_color_query.single_mut();
+    alpha.elapsed += time.delta_seconds();
+    alpha.value = ALPHA_SPEED * 0.5 * bezier_blend(alpha.elapsed);
 
-        color.0 = color.0.with_a(alpha.value);
+    let mut color = background_color_query.single_mut();
+
+    color.0 = color.0.with_a(alpha.value);
+}
+
+fn show(mut visibility_query: Query<&mut Visibility, With<GameOverElement>>) {
+    for mut visibility in visibility_query.iter_mut() {
+        *visibility = Visibility::Visible;
     }
 }
 
-fn despawn<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) {
-    for entity in query.iter() {
-        commands.entity(entity).despawn_recursive();
+fn button_action(
+    interaction_query: Query<
+        (&Interaction, &GameOverButtonAction),
+        (Changed<Interaction>, With<Button>),
+    >,
+    mut app_state: ResMut<NextState<AppState>>,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    for (interaction, action) in &interaction_query {
+        match interaction {
+            Interaction::Pressed => match *action {
+                GameOverButtonAction::Menu => {
+                    app_state.set(AppState::Menu);
+                    game_state.set(GameState::None);
+                }
+            },
+            _ => {}
+        }
     }
 }

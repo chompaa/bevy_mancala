@@ -39,7 +39,8 @@ impl Plugin for BoardPlugin {
                     handle_hover,
                 )
                     .run_if(in_state(AppState::Game)),
-            );
+            )
+            .add_systems(OnExit(AppState::Game), helpers::despawn::<BoardScreen>);
     }
 }
 
@@ -55,8 +56,13 @@ pub struct SlotButton;
 #[derive(Component)]
 pub struct SlotUi(pub Entity);
 
+#[derive(Component)]
+struct BoardScreen;
+
 pub fn draw_board(mut commands: Commands, board: Res<Board>) {
     let screen = helpers::get_screen(&mut commands);
+
+    commands.entity(screen).insert(BoardScreen);
 
     let slot_container = commands
         .spawn(NodeBundle {

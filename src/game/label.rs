@@ -16,9 +16,13 @@ pub struct LabelPlugin;
 impl Plugin for LabelPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(SpawnScene, draw_labels.run_if(in_state(AppState::Game)))
-            .add_systems(Last, update_labels.run_if(in_state(AppState::Game)));
+            .add_systems(Last, update_labels.run_if(in_state(AppState::Game)))
+            .add_systems(OnExit(AppState::Game), helpers::despawn::<LabelScreen>);
     }
 }
+
+#[derive(Component)]
+struct LabelScreen;
 
 #[derive(Component)]
 pub struct Label(Entity);
@@ -38,6 +42,8 @@ pub fn draw_labels(
     clear_labels(&mut commands, &label_query);
 
     let screen = helpers::get_screen(&mut commands);
+
+    commands.entity(screen).insert(LabelScreen);
 
     let width = LABEL_SIZE * (Board::COLS as f32) + LABEL_SLOT_GAP_X * ((Board::COLS - 1) as f32);
     let height = LABEL_SIZE * (Board::ROWS as f32) + LABEL_SLOT_GAP_Y;

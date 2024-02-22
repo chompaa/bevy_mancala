@@ -23,7 +23,8 @@ impl Plugin for MarblePlugin {
             .add_systems(
                 PostUpdate,
                 handle_marble_events.run_if(in_state(AppState::Game)),
-            );
+            )
+            .add_systems(OnExit(AppState::Game), helpers::despawn::<MarbleContainer>);
     }
 }
 
@@ -56,6 +57,9 @@ pub struct Marble;
 
 #[derive(Component)]
 pub struct MarbleStack(pub Entity, pub Vec2, pub Vec2);
+
+#[derive(Component)]
+struct MarbleContainer;
 
 #[derive(Component)]
 pub struct MarbleOutline(Entity);
@@ -202,6 +206,7 @@ pub fn draw_containers(
                 ..default()
             },
             MarbleStack(slot_ui.0, transform, radius),
+            MarbleContainer,
         ));
 
         let count = slot_query.get(slot_ui.0).unwrap().count;

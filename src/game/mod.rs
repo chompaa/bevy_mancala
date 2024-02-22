@@ -52,7 +52,11 @@ impl Plugin for GamePlugin {
                 .run_if(in_state(GameState::Playing))
                 .run_if(in_state(AppState::Game)),
         )
-        .add_systems(OnEnter(GameState::Idle), check_game_over);
+        .add_systems(OnEnter(GameState::Idle), check_game_over)
+        .add_systems(
+            OnExit(AppState::Game),
+            (helpers::despawn::<BoardElement>, helpers::despawn::<Slot>),
+        );
     }
 }
 
@@ -117,6 +121,9 @@ pub struct Slot {
     pub index: usize,
     pub count: u32,
 }
+
+#[derive(Component)]
+struct BoardElement;
 
 #[derive(Resource, Default, Debug)]
 pub struct CurrentPlayer(pub Player);
@@ -191,21 +198,28 @@ fn setup_slots(
     asset_server: Res<AssetServer>,
     mut reload_ui_event: EventWriter<ReloadUiEvent>,
     mut board: ResMut<Board>,
+    mut current_player: ResMut<CurrentPlayer>,
 ) {
     let board_texture = asset_server.load("textures/board.png");
 
-    commands.spawn(SpriteBundle {
-        texture: board_texture,
-        transform: Transform {
-            translation: Vec3::new(0.0, 0.0, -100.),
-            scale: Vec3::new(4.0, 4.0, 1.0),
+    commands.spawn((
+        SpriteBundle {
+            texture: board_texture,
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, -100.),
+                scale: Vec3::new(4.0, 4.0, 1.0),
+                ..default()
+            },
             ..default()
         },
-        ..default()
-    });
+        BoardElement,
+    ));
+
+    board.slots.clear();
+    current_player.0 = Player::default();
 
     for index in 0..Board::LENGTH {
-        let mut slot = Slot {
+        let slot = Slot {
             index,
             count: if Board::is_store(index) {
                 0
@@ -213,12 +227,6 @@ fn setup_slots(
                 SLOT_START_AMOUNT
             },
         };
-
-        if slot.index == 4 || slot.index == 7 {
-            slot.count = 1;
-        } else {
-            slot.count = 0;
-        }
 
         let entity = commands.spawn(slot).id();
         board.slots.push(entity);

@@ -23,9 +23,16 @@ impl Plugin for TurnIndicatorPlugin {
                 draw_labels.run_if(on_event::<ReloadUiEvent>()),
                 update_labels.run_if(in_state(AppState::Game)),
             ),
+        )
+        .add_systems(
+            OnExit(AppState::Game),
+            helpers::despawn::<TurnIndicatorScreen>,
         );
     }
 }
+
+#[derive(Component)]
+struct TurnIndicatorScreen;
 
 #[derive(Component)]
 pub struct TurnIndicatorLabel {
@@ -41,6 +48,8 @@ pub fn draw_labels(
     profiles: Res<Persistent<Profiles>>,
 ) {
     let screen = helpers::get_screen(&mut commands);
+
+    commands.entity(screen).insert(TurnIndicatorScreen);
 
     let containers: Vec<Entity> = Player::iter()
         .map(|player| {

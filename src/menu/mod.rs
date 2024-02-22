@@ -215,12 +215,19 @@ fn blink(mut query: Query<&mut Text, With<Blink>>, time: Res<Time>) {
 }
 
 fn listen(
-    mut key_evr: EventReader<KeyboardInput>,
+    keyboard_evr: EventReader<KeyboardInput>,
     mut mouse_evr: EventReader<MouseButtonInput>,
     mut menu_state: ResMut<NextState<MenuState>>,
 ) {
-    if key_evr.read().next().is_some() || mouse_evr.read().next().is_some() {
+    if !keyboard_evr.is_empty() {
         menu_state.set(MenuState::Mode);
+    }
+
+    for event in mouse_evr.read() {
+        // so we don't trigger after releasing the mouse on the game over screen
+        if event.state.is_pressed() {
+            menu_state.set(MenuState::Mode);
+        }
     }
 }
 
@@ -307,6 +314,7 @@ fn setup_profile_screen(
     mut commands: Commands,
     query: Query<Entity, With<Main>>,
     ui_materials: Res<UiAssets>,
+    mut selected: ResMut<Selected>,
 ) {
     let screen = query.single();
 
@@ -500,6 +508,8 @@ fn setup_profile_screen(
     commands
         .entity(screen)
         .push_children(&[title, top_container, profiles_container, play]);
+
+    *selected = Selected::default();
 }
 
 fn spawn_profiles(
@@ -672,6 +682,7 @@ fn button_action(
                 }
                 ButtonAction::Play => {
                     app_state.set(AppState::Game);
+                    menu_state.set(MenuState::Start);
                 }
                 _ => {}
             },
